@@ -1,203 +1,269 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prakriti Herbs - Enterprise CRM v5.0</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
-    <style>
-        :root { --primary: #2d5a27; --gold: #d4af37; --bg: #f4f7f6; --white: #ffffff; --warn: #e74c3c; }
-        body { font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; background: var(--bg); font-size: 14px; }
-        .sidebar { width: 260px; height: 100vh; background: var(--primary); color: white; padding: 20px; position: fixed; z-index: 100; }
-        .main { margin-left: 280px; padding: 30px; width: calc(100% - 280px); }
-        .card { background: var(--white); padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; }
-        nav button { width: 100%; padding: 12px; margin: 8px 0; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; text-align: left; cursor: pointer; border-radius: 8px; font-weight: bold; }
-        nav button:hover { background: var(--gold); color: black; }
-        .hidden { display: none !important; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { padding: 12px; border: 1px solid #eee; text-align: center; }
-        th { background: #f8fcf8; color: var(--primary); }
-        .btn-action { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-        .btn-wa { background: #25d366; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; }
-        .bday-banner { background: var(--gold); color: black; padding: 15px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 20px; border: 2px solid #fff; box-shadow: 0 0 15px rgba(212,175,55,0.5); }
-        input[type="number"] { width: 70px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; }
-    </style>
+<meta charset="UTF-8">
+<title>Prakriti Herbs CRM</title>
+
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js"></script>
+
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js"></script>
+
+<style>
+
+body{
+font-family:Arial;
+background:#f4f7f6;
+margin:0;
+padding:20px;
+}
+
+.menu button{
+margin:5px;
+padding:10px;
+}
+
+section{
+display:none;
+margin-top:20px;
+}
+
+table{
+border-collapse:collapse;
+width:100%;
+}
+
+th,td{
+border:1px solid #ddd;
+padding:8px;
+text-align:center;
+}
+
+input,textarea{
+margin:5px;
+padding:6px;
+}
+
+</style>
+
 </head>
+
 <body>
 
-<div id="login-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:var(--primary); display:flex; justify-content:center; align-items:center; z-index:9999; color:white;">
-    <div style="background:rgba(255,255,255,0.15); padding:30px; border-radius:15px; width:350px; text-align:center;">
-        <h2>MASTER CRM LOGIN</h2>
-        <input type="password" id="mPin" placeholder="Master PIN" style="width:90%; padding:12px; border-radius:8px; margin-bottom:20px; border:none; font-size:16px;">
-        <button onclick="unlockCRM()" style="width:100%; padding:12px; background:var(--gold); border:none; color:white; font-weight:bold; cursor:pointer; border-radius:8px; font-size:16px;">LOG IN</button>
-    </div>
+<h2>Prakriti Herbs CRM</h2>
+
+<div class="menu">
+
+<button onclick="show('dashboard')">Dashboard</button> <button onclick="show('attendance')">Attendance</button> <button onclick="show('staff')">Staff</button> <button onclick="show('commission')">Commission</button> <button onclick="show('messages')">Messages</button> <button onclick="show('notice')">Notice</button>
+
 </div>
 
-<div id="app-content" class="hidden">
-    <div class="sidebar">
-        <h2 style="color:var(--gold)">Prakriti Herbs</h2>
-        <nav>
-            <button onclick="showPage('payroll')">Salary & WhatsApp Slip</button>
-            <button onclick="showPage('staff-master')">Staff Master (Birthday)</button>
-            <button onclick="showPage('docs')">Document Vault</button>
-            <button onclick="location.reload()" style="margin-top:40px; background:#c0392b;">LOGOUT</button>
-        </nav>
-    </div>
+<section id="dashboard">
 
-    <div class="main">
-        <div id="bdayAnnounce" class="hidden"></div>
+<h3>Dashboard</h3>
+<p>Welcome to Prakriti Herbs CRM</p>
 
-        <section id="payroll">
-            <h1>Staff Payroll & WhatsApp Slips</h1>
-            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                <button class="btn-action" style="background:var(--gold); color:black;" onclick="downloadPDF()">📥 Download PDF Report</button>
-            </div>
-            <div class="card">
-                <table id="salaryTableMain">
-                    <thead>
-                        <tr>
-                            <th>Staff Name</th>
-                            <th>Base Salary</th>
-                            <th>Commission</th>
-                            <th>Unused WO (₹400)</th>
-                            <th>Advance</th>
-                            <th>Net Payable</th>
-                            <th>WhatsApp</th>
-                        </tr>
-                    </thead>
-                    <tbody id="payrollBody"></tbody>
-                </table>
-            </div>
-        </section>
+</section>
 
-        <section id="staff-master" class="hidden">
-            <h1>Staff Management</h1>
-            <div class="card">
-                <h3>Staff List & Birthday Settings</h3>
-                <div id="staffSetupList">Loading staff data...</div>
-            </div>
-        </section>
+<section id="attendance">
 
-        <section id="docs" class="hidden">
-            <h1>Document Vault</h1>
-            <div class="card">
-                <h3>KYC Records (Aadhar/PAN/Bank)</h3>
-                <p>Upload and view staff documents here.</p>
-                <div id="docBody"></div>
-            </div>
-        </section>
-    </div>
-</div>
+<h3>Attendance Punch</h3>
 
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+<button onclick="punchIn()">Punch In</button> <button onclick="punchOut()">Punch Out</button>
 
-    // Your Verified Firebase Config
-    const firebaseConfig = {
-        apiKey: "AIzaSyCVM97hn0e8GJFIIfCwDfRhfwUr2ORuT6c",
-        authDomain: "prakriti-crm.firebaseapp.com",
-        projectId: "prakriti-crm",
-        databaseURL: "https://prakriti-crm-default-rtdb.firebaseio.com/", 
-        storageBucket: "prakriti-crm.appspot.com"
-    };
+<p id="punchStatus"></p>
 
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
-    let masterData = {};
+</section>
 
-    window.unlockCRM = () => {
-        if(document.getElementById('mPin').value === "Prakriti@Master") {
-            document.getElementById('login-overlay').classList.add('hidden');
-            document.getElementById('app-content').classList.remove('hidden');
-            fetchData();
-        } else { alert("Access Denied! Incorrect PIN."); }
-    };
+<section id="staff">
 
-    function fetchData() {
-        onValue(ref(db, '/'), (snap) => {
-            masterData = snap.val() || {};
-            checkBirthdays();
-            renderPayroll();
-            renderStaffSetup();
-        });
-    }
+<h3>Add Staff</h3>
 
-    function checkBirthdays() {
-        const today = new Date().toISOString().slice(5, 10); // Format: MM-DD
-        const staffs = masterData.staff || {};
-        const bdayDiv = document.getElementById('bdayAnnounce');
-        bdayDiv.innerHTML = ''; bdayDiv.classList.add('hidden');
+<input id="staffName" placeholder="Name">
+<input id="staffMobile" placeholder="Mobile">
+<input id="staffSalary" placeholder="Basic Salary">
 
-        for(let id in staffs) {
-            if(staffs[id].dob && staffs[id].dob.slice(5, 10) === today) {
-                bdayDiv.classList.remove('hidden');
-                bdayDiv.innerHTML += `<div class="bday-banner">🎉 Happy Birthday, ${staffs[id].name}! 🎂 Many happy returns of the day!</div>`;
-            }
-        }
-    }
+<button onclick="addStaff()">Add Staff</button>
 
-    function renderPayroll() {
-        const tbody = document.getElementById('payrollBody');
-        tbody.innerHTML = '';
-        const staffs = masterData.staff || {};
-        const advances = masterData.advances || {};
+<table>
 
-        for(let id in staffs) {
-            const s = staffs[id];
-            const comm = s.commission || 0;
-            const extraWO = (s.unusedWeekOffs || 0) * 400;
-            let totalAdv = 0;
-            for(let aid in advances) { if(advances[aid].name === s.name) totalAdv += parseInt(advances[aid].amt); }
+<thead>
 
-            const netPay = parseInt(s.salary || 0) + parseInt(comm) + extraWO - totalAdv;
+<tr>
+<th>Name</th>
+<th>Mobile</th>
+<th>Salary</th>
+</tr>
 
-            tbody.innerHTML += `<tr>
-                <td>${s.name}</td>
-                <td>₹${s.salary || 0}</td>
-                <td><input type="number" value="${comm}" onchange="updateVal('${id}', 'commission', this.value)"></td>
-                <td><input type="number" value="${s.unusedWeekOffs || 0}" onchange="updateVal('${id}', 'unusedWeekOffs', this.value)"></td>
-                <td>₹${totalAdv}</td>
-                <td style="font-weight:bold; color:green;">₹${netPay}</td>
-                <td><button class="btn-wa" onclick="sendWASlip('${s.name}', '${netPay}', '${s.mobile}')">WhatsApp</button></td>
-            </tr>`;
-        }
-    }
+</thead>
 
-    function renderStaffSetup() {
-        const listDiv = document.getElementById('staffSetupList');
-        listDiv.innerHTML = '';
-        const staffs = masterData.staff || {};
-        for(let id in staffs) {
-            listDiv.innerHTML += `<div style="margin-bottom:10px;">
-                <b>${staffs[id].name}</b> - DOB: <input type="date" value="${staffs[id].dob || ''}" onchange="updateVal('${id}', 'dob', this.value)">
-            </div>`;
-        }
-    }
+<tbody id="staffList"></tbody>
 
-    window.updateVal = (id, field, val) => {
-        const value = (field === 'dob') ? val : parseInt(val);
-        update(ref(db, `staff/${id}`), { [field]: value });
-    };
+</table>
 
-    window.sendWASlip = (name, amount, mobile) => {
-        const msg = `*Prakriti Herbs Salary Slip*\n\nName: ${name}\nNet Payable Amount: ₹${amount}\nStatus: Processed\n\nThank you!`;
-        window.open(`https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`);
-    };
+</section>
 
-    window.downloadPDF = () => {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-        doc.text("Prakriti Herbs - Monthly Staff Salary Sheet", 14, 15);
-        doc.autoTable({ html: '#salaryTableMain', startY: 25 });
-        doc.save("Salary_Report.pdf");
-    };
+<section id="commission">
 
-    window.showPage = (id) => {
-        document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
-        document.getElementById(id).classList.remove('hidden');
-    };
+<h3>Commission Calculator</h3>
+
+<input id="amount" placeholder="Amount">
+
+<button onclick="calcCommission()">Calculate</button>
+
+<p id="commissionResult"></p>
+
+</section>
+
+<section id="messages">
+
+<h3>Send Message</h3>
+
+<textarea id="msg"></textarea>
+
+<button onclick="sendMessage()">Send</button>
+
+</section>
+
+<section id="notice">
+
+<h3>Notice Board</h3>
+
+<input id="noticeTitle" placeholder="Title">
+
+<textarea id="noticeText"></textarea>
+
+<button onclick="publishNotice()">Publish</button>
+
+</section>
+
+<script>
+
+const firebaseConfig = {
+
+apiKey:"YOUR_API_KEY",
+
+authDomain:"YOUR_PROJECT.firebaseapp.com",
+
+databaseURL:"https://YOUR_PROJECT-default-rtdb.firebaseio.com/",
+
+projectId:"YOUR_PROJECT",
+
+storageBucket:"YOUR_PROJECT.appspot.com"
+
+}
+
+firebase.initializeApp(firebaseConfig)
+
+const db = firebase.database()
+
+function show(id){
+
+document.querySelectorAll("section").forEach(s=>s.style.display="none")
+
+document.getElementById(id).style.display="block"
+
+}
+
+function punchIn(){
+
+const today = new Date().toISOString().slice(0,10)
+
+db.ref("attendance/"+today+"/demo").update({
+
+punchIn:new Date().toLocaleTimeString()
+
+})
+
+document.getElementById("punchStatus").innerText="Punch In Recorded"
+
+}
+
+function punchOut(){
+
+const today = new Date().toISOString().slice(0,10)
+
+db.ref("attendance/"+today+"/demo").update({
+
+punchOut:new Date().toLocaleTimeString()
+
+})
+
+document.getElementById("punchStatus").innerText="Punch Out Recorded"
+
+}
+
+function addStaff(){
+
+const name=document.getElementById("staffName").value
+const mobile=document.getElementById("staffMobile").value
+const salary=document.getElementById("staffSalary").value
+
+db.ref("staff").push({
+
+name:name,
+mobile:mobile,
+salary:salary
+
+})
+
+alert("Staff Added")
+
+}
+
+function calcCommission(){
+
+const amt=parseFloat(document.getElementById("amount").value)
+
+let commission
+
+if(amt<1000){
+
+commission=10
+
+}else{
+
+commission=(amt-1000)*0.10
+
+}
+
+document.getElementById("commissionResult").innerText="Commission: "+commission
+
+}
+
+function sendMessage(){
+
+const msg=document.getElementById("msg").value
+
+db.ref("messages").push({
+
+text:msg,
+time:Date.now()
+
+})
+
+alert("Message Sent")
+
+}
+
+function publishNotice(){
+
+const title=document.getElementById("noticeTitle").value
+const text=document.getElementById("noticeText").value
+
+db.ref("notices").push({
+
+title:title,
+text:text,
+time:Date.now()
+
+})
+
+alert("Notice Published")
+
+}
+
 </script>
+
 </body>
 </html>
