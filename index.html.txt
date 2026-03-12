@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prakriti Herbs Private Limited - Ultimate CRM</title>
+    <style>
+        :root { --primary: #2d5a27; --bg: #f4f7f6; --gold: #d4af37; --white: #ffffff; --danger: #e74c3c; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; background: var(--bg); display: flex; color: #333; font-size: 13px; }
+        
+        .sidebar { width: 280px; height: 100vh; background: var(--primary); color: white; padding: 20px; position: fixed; box-shadow: 2px 0 10px rgba(0,0,0,0.1); z-index: 100; }
+        .sidebar h2 { text-align: center; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 15px; margin-bottom: 25px; font-size: 18px; }
+        nav button { width: 100%; padding: 14px; margin: 8px 0; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; text-align: left; cursor: pointer; border-radius: 8px; transition: 0.3s; }
+        nav button:hover, .active-btn { background: var(--gold) !important; color: #fff; font-weight: bold; }
+
+        .main-content { margin-left: 300px; padding: 30px; width: calc(100% - 300px); }
+        .card { background: var(--white); padding: 25px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 25px; }
+        h1 { color: var(--primary); font-size: 22px; margin-top: 0; border-left: 5px solid var(--gold); padding-left: 15px; }
+
+        .btn { padding: 10px 15px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; }
+        .btn-export { background: #27ae60; margin-left: 5px; }
+        .btn-danger { background: var(--danger); }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; }
+        th, td { padding: 10px; border: 1px solid #eee; text-align: center; }
+        th { background: #f8fcf8; color: var(--primary); }
+
+        .hidden { display: none; }
+        .breakdown-box { text-align: left; font-size: 11px; background: #f9f9f9; padding: 8px; border-radius: 4px; border: 1px solid #ddd; line-height: 1.6; }
+        .tab-menu { display: flex; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .tab-btn { padding: 8px 15px; border: none; background: #ddd; cursor: pointer; border-radius: 4px; font-weight: bold; }
+        .tab-btn.active { background: var(--gold); color: white; }
+
+        @media print {
+            body * { visibility: hidden; }
+            #print-area, #print-area * { visibility: visible; }
+            #print-area { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <h2>PRAKRITI HERBS<br>PRIVATE LIMITED</h2>
+    <nav>
+        <button id="nav-staff" onclick="showPage('staff-master')" class="active-btn">1. Staff Master</button>
+        <button id="nav-comm" onclick="showPage('commission')">2. Commission Analysis</button>
+        <button id="nav-att" onclick="showPage('attendance')">3. Mark Attendance</button>
+        <button id="nav-matrix" onclick="showPage('att-matrix')">4. Attendance Grid</button>
+        <button id="nav-payroll" onclick="showPage('payroll')">5. Payroll & Slips</button>
+    </nav>
+</div>
+
+<div class="main-content">
+    
+    <section id="staff-master">
+        <h1>Team Management</h1>
+        <div class="card">
+            <div style="display:flex; gap:10px;">
+                <input type="text" id="mName" placeholder="Staff Name" style="flex:2">
+                <input type="number" id="mSalary" placeholder="Basic Salary (₹)" value="12000" style="flex:1">
+                <button class="btn" onclick="addStaff()">Add Staff</button>
+            </div>
+            <table>
+                <thead><tr><th>Name</th><th>Salary (30 Day Base)</th><th>Action</th></tr></thead>
+                <tbody id="masterTableBody"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="commission" class="hidden">
+        <h1>Commission Reports</h1>
+        <div class="card">
+            <div style="display:flex; gap:10px; align-items:center;">
+                <input type="file" id="csvFile" accept=".csv" />
+                <button class="btn" onclick="processCSV()">Calculate From File</button>
+            </div>
+            
+            <div class="tab-menu" style="margin-top:20px;">
+                <button class="tab-btn active" onclick="switchCommTab('summary', this)">Total Summary Report</button>
+                <button class="tab-btn" onclick="switchCommTab('detailed', this)">Individual Detailed Report</button>
+            </div>
+
+            <div id="comm-summary-view">
+                <button class="btn btn-export" onclick="exportSummaryComm()">Export Summary CSV</button>
+                <table id="summaryTable">
+                    <thead><tr><th>Lead Owner Name</th><th>Total Sale Amount</th><th>Total Commission (₹)</th></tr></thead>
+                    <tbody id="summaryBody"></tbody>
+                </table>
+            </div>
+
+            <div id="comm-detailed-view" class="hidden">
+                <button class="btn btn-export" onclick="exportDetailedComm()">Export Detailed CSV</button>
+                <table id="detailedTable">
+                    <thead><tr><th>Lead Owner Name</th><th>Order Breakdown (Price x Qty = Comm)</th><th>Total Commission (₹)</th></tr></thead>
+                    <tbody id="detailedBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <section id="attendance" class="hidden">
+        <h1>Attendance Portal</h1>
+        <div class="card">
+            <h3>Date Selection: <input type="date" id="attDate"></h3>
+            <table>
+                <thead><tr><th>Staff Name</th><th>Mark Today's Status</th></tr></thead>
+                <tbody id="dailyAttBody"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="att-matrix" class="hidden">
+        <h1>Attendance Grid (1-31)</h1>
+        <div class="card">
+            <div style="overflow-x:auto;">
+                <table id="matrixTable" style="font-size:10px;">
+                    <thead id="matrixHead"></thead>
+                    <tbody id="matrixBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <section id="payroll" class="hidden">
+        <h1>Payroll Summary (30 Day Base)</h1>
+        <div class="card">
+            <button class="btn btn-export" onclick="exportPayroll()">Download Payroll CSV</button>
+            <table>
+                <thead>
+                    <tr><th>Name</th><th>Base</th><th>Comm.</th><th>Bonus (+)</th><th>LWP Cut (-)</th><th>Net Total</th><th>Slip</th></tr>
+                </thead>
+                <tbody id="payrollBody"></tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<div id="print-area" class="hidden"></div>
+
+<script>
+    let staffList = JSON.parse(localStorage.getItem('ph_staff_v14')) || [];
+    let attHistory = JSON.parse(localStorage.getItem('ph_att_v14')) || [];
+    let detailedCommMap = {};
+
+    document.getElementById('attDate').valueAsDate = new Date();
+
+    function showPage(id) {
+        document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+        document.querySelectorAll('nav button').forEach(b => b.classList.remove('active-btn'));
+        document.getElementById(id).classList.remove('hidden');
+        document.getElementById('nav-' + id.split('-')[0]).classList.add('active-btn');
+        if(id === 'att-matrix') renderMatrix();
+        renderAll();
+    }
+
+    function addStaff() {
+        const name = document.getElementById('mName').value.trim();
+        const salary = parseFloat(document.getElementById('mSalary').value);
+        if(!name) return;
+        staffList.push({ name, salary });
+        saveData();
+        document.getElementById('mName').value = '';
+        renderAll();
+    }
+
+    function processCSV() {
+        const file = document.getElementById('csvFile').files[0];
+        if(!file) return alert("Select CSV File");
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const rows = e.target.result.split('\n');
+            const headers = rows[0].split(',').map(h => h.trim().replace(/"/g, ''));
+            const pIdx = headers.indexOf('Price'), oIdx = headers.indexOf('LeadOwner');
+
+            if (pIdx === -1 || oIdx === -1) return alert("Error: 'LeadOwner' or 'Price' column missing!");
+
+            detailedCommMap = {};
+            for(let i=1; i<rows.length; i++){
+                const cols = rows[i].split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/);
+                if(cols.length < headers.length) continue;
+                const name = cols[oIdx]?.replace(/"/g,'').trim();
+                const price = parseFloat(cols[pIdx]?.replace(/"/g,'')) || 0;
+                
+                let comm = (price > 0 && price <= 1000) ? 10 : (price > 1000 ? (price - 1000) * 0.1 : 0);
+
+                if(!detailedCommMap[name]) detailedCommMap[name] = { totalComm: 0, totalSale: 0, breakdown: {} };
+                detailedCommMap[name].totalComm += comm;
+                detailedCommMap[name].totalSale += price;
+                
+                if(!detailedCommMap[name].breakdown[price]) detailedCommMap[name].breakdown[price] = { count: 0, commSum: 0 };
+                detailedCommMap[name].breakdown[price].count += 1;
+                detailedCommMap[name].breakdown[price].commSum += comm;
+            }
+            renderCommReports();
+        };
+        reader.readAsText(file);
+    }
+
+    function switchCommTab(type, btn) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        if(type === 'summary') {
+            document.getElementById('comm-summary-view').classList.remove('hidden');
+            document.getElementById('comm-detailed-view').classList.add('hidden');
+        } else {
+            document.getElementById('comm-summary-view').classList.add('hidden');
+            document.getElementById('comm-detailed-view').classList.remove('hidden');
+        }
+    }
+
+    function renderCommReports() {
+        const sBody = document.getElementById('summaryBody');
+        const dBody = document.getElementById('detailedBody');
+        sBody.innerHTML = ''; dBody.innerHTML = '';
+
+        for(let name in detailedCommMap) {
+            const data = detailedCommMap[name];
+            
+            // Summary Table
+            sBody.innerHTML += `<tr><td><strong>${name}</strong></td><td>₹${data.totalSale.toFixed(0)}</td><td><strong>₹${data.totalComm.toFixed(1)}</strong></td></tr>`;
+
+            // Detailed Table
+            let breakdownHtml = "";
+            for(let pr in data.breakdown) {
+                const b = data.breakdown[pr];
+                breakdownHtml += `<div>• ₹${pr} x ${b.count} orders = ₹${b.commSum.toFixed(1)}</div>`;
+            }
+            dBody.innerHTML += `<tr>
+                <td><strong>${name}</strong></td>
+                <td><div class="breakdown-box">${breakdownHtml}</div></td>
+                <td><strong>₹${data.totalComm.toFixed(1)}</strong></td>
+            </tr>`;
+        }
+    }
+
+    function markAttendance(name, status) {
+        const date = document.getElementById('attDate').value;
+        const usedWO = attHistory.filter(a => a.name === name && a.status === 'Week Off').length;
+        if(status === 'Week Off' && usedWO >= 4) return alert("Warning: " + name + " has already used 4 Week Offs!");
+        
+        const idx = attHistory.findIndex(a => a.date === date && a.name === name);
+        if(idx > -1) attHistory[idx].status = status;
+        else attHistory.push({ date, name, status });
+        localStorage.setItem('ph_att_v14', JSON.stringify(attHistory));
+        renderAll();
+    }
+
+    function renderMatrix() {
+        const head = document.getElementById('matrixHead');
+        const body = document.getElementById('matrixBody');
+        let hHtml = '<tr><th>Name</th>';
+        for(let d=1; d<=31; d++) hHtml += `<th>${d}</th>`;
+        hHtml += '</tr>';
+        head.innerHTML = hHtml;
+        body.innerHTML = staffList.map(s => {
+            let row = `<tr><td style="text-align:left"><strong>${s.name}</strong></td>`;
+            for(let d=1; d<=31; d++) {
+                const dateStr = `2026-03-${d.toString().padStart(2,'0')}`;
+                const rec = attHistory.find(a => a.name === s.name && a.date === dateStr);
+                let char = '-';
+                if(rec) {
+                    if(rec.status === 'Present') char = 'P';
+                    else if(rec.status === 'Week Off') char = 'W';
+                    else char = 'L';
+                }
+                row += `<td>${char}</td>`;
+            }
+            return row + '</tr>';
+        }).join('');
+    }
+
+    function renderAll() {
+        document.getElementById('masterTableBody').innerHTML = staffList.map((s, i) => `
+            <tr><td>${s.name}</td><td>₹${s.salary}</td><td><button class="btn btn-danger" onclick="staffList.splice(${i},1);renderAll();">X</button></td></tr>
+        `).join('');
+
+        document.getElementById('dailyAttBody').innerHTML = staffList.map(s => `
+            <tr><td><strong>${s.name}</strong></td><td>
+                <button class="btn" onclick="markAttendance('${s.name}','Present')">P</button>
+                <button class="btn" style="background:#3498db" onclick="markAttendance('${s.name}','Week Off')">WO</button>
+                <button class="btn btn-danger" onclick="markAttendance('${s.name}','LWP')">LWP</button>
+            </td></tr>
+        `).join('');
+
+        document.getElementById('payrollBody').innerHTML = staffList.map(s => {
+            const comm = detailedCommMap[s.name]?.totalComm || 0;
+            const wo = attHistory.filter(a => a.name === s.name && a.status === 'Week Off').length;
+            const lwp = attHistory.filter(a => a.name === s.name && a.status === 'LWP').length;
+            const perDay = s.salary / 30;
+            const bonus = (4-wo > 0) ? (4-wo)*perDay : 0;
+            const penalty = lwp * perDay;
+            const net = s.salary + comm + bonus - penalty;
+            return `<tr><td>${s.name}</td><td>₹${s.salary}</td><td>₹${comm.toFixed(1)}</td><td>₹${bonus.toFixed(0)}</td><td>₹${penalty.toFixed(0)}</td><td>₹${net.toFixed(0)}</td>
+            <td><button class="btn" onclick="printSlip('${s.name}',${s.salary},${comm},${bonus},${penalty},${net})">Slip</button></td></tr>`;
+        }).join('');
+    }
+
+    function exportSummaryComm() {
+        let csv = "LeadOwner,TotalSale,TotalCommission\n";
+        for(let name in detailedCommMap) csv += `${name},${detailedCommMap[name].totalSale},${detailedCommMap[name].totalComm.toFixed(2)}\n`;
+        downloadCSV(csv, "Commission_Summary.csv");
+    }
+
+    function exportDetailedComm() {
+        let csv = "LeadOwner,PricePoint,Count,CommEarned\n";
+        for(let name in detailedCommMap) {
+            for(let pr in detailedCommMap[name].breakdown) {
+                const b = detailedCommMap[name].breakdown[pr];
+                csv += `${name},${pr},${b.count},${b.commSum.toFixed(2)}\n`;
+            }
+        }
+        downloadCSV(csv, "Detailed_Lead_Commission.csv");
+    }
+
+    function exportPayroll() {
+        let csv = "Name,Base,Comm,Bonus,Penalty,Net\n";
+        staffList.forEach(s => {
+            const c = detailedCommMap[s.name]?.totalComm || 0;
+            const wo = attHistory.filter(a => a.name === s.name && a.status === 'Week Off').length;
+            const lwp = attHistory.filter(a => a.name === s.name && a.status === 'LWP').length;
+            const b = (4-wo>0)?(4-wo)*s.salary/30 : 0;
+            const p = lwp*s.salary/30;
+            csv += `${s.name},${s.salary},${c.toFixed(1)},${b.toFixed(0)},${p.toFixed(0)},${(s.salary+c+b-p).toFixed(0)}\n`;
+        });
+        downloadCSV(csv, "Payroll_Report.csv");
+    }
+
+    function downloadCSV(csv, f) {
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = f; a.click();
+    }
+
+    function printSlip(n, b, c, bo, p, t) {
+        const area = document.getElementById('print-area');
+        area.innerHTML = `<div style="border:2px solid #2d5a27; padding:40px; width:550px; margin:auto; background:#fff; font-family:sans-serif;">
+            <center><h2>PRAKRITI HERBS PRIVATE LIMITED</h2><hr></center>
+            <p><strong>Employee:</strong> ${n} <span style="float:right">Date: ${new Date().toLocaleDateString()}</span></p>
+            <table style="width:100%; border-collapse:collapse; border:1px solid #ddd;">
+                <tr><td>Fixed Base Salary (30 Days)</td><td align="right">₹${b}</td></tr>
+                <tr><td>Total Commission</td><td align="right">₹${c.toFixed(2)}</td></tr>
+                <tr><td>Bonus (Week Off Saved)</td><td align="right" style="color:green;">+₹${bo.toFixed(0)}</td></tr>
+                <tr><td>LWP Deduction</td><td align="right" style="color:red;">-₹${p.toFixed(0)}</td></tr>
+                <tr style="background:#2d5a27; color:white;"><td><strong>TOTAL PAYABLE</strong></td><td align="right"><strong>₹${t.toFixed(0)}</strong></td></tr>
+            </table></div>`;
+        window.print();
+    }
+
+    function saveData() { localStorage.setItem('ph_staff_v14', JSON.stringify(staffList)); }
+    renderAll();
+</script>
+</body>
+</html>
