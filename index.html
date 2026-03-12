@@ -1,262 +1,196 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Prakriti Herbs CRM</title>
-
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-
-<style>
-
-body{
-font-family:Arial;
-background:#f4f7f6;
-margin:0;
-padding:20px;
-}
-
-.menu button{
-margin:5px;
-padding:10px;
-}
-
-section{
-display:none;
-margin-top:20px;
-}
-
-table{
-border-collapse:collapse;
-width:100%;
-}
-
-th,td{
-border:1px solid #ddd;
-padding:8px;
-text-align:center;
-}
-
-input,textarea{
-margin:5px;
-padding:6px;
-}
-
-</style>
-
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prakriti Herbs - Enterprise CRM v11.0</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <style>
+        :root { --primary: #2d5a27; --gold: #d4af37; --bg: #f4f7f6; --white: #ffffff; --warn: #e74c3c; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; background: var(--bg); }
+        .sidebar { width: 260px; height: 100vh; background: var(--primary); color: white; padding: 20px; position: fixed; }
+        .main { margin-left: 280px; padding: 30px; width: calc(100% - 280px); }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        nav button { width: 100%; padding: 12px; margin: 8px 0; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; text-align: left; cursor: pointer; border-radius: 8px; font-weight: bold; }
+        nav button:hover { background: var(--gold); color: black; }
+        .hidden { display: none !important; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { padding: 10px; border: 1px solid #eee; text-align: center; }
+        .btn-gold { background: var(--gold); border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        
+        /* Security Roles */
+        .super-only { display: none; }
+        .is-super .super-only { display: inline-block; }
+        
+        /* Mobile Block for Punching */
+        @media only screen and (max-width: 1024px) {
+            .punch-btn { pointer-events: none; opacity: 0.5; }
+            .mobile-msg { display: block !important; background: #fff3cd; color: #856404; padding: 10px; border-radius: 5px; margin-bottom: 10px; text-align: center; }
+        }
+    </style>
 </head>
-
 <body>
 
-<h2>Prakriti Herbs CRM</h2>
-
-<div class="menu">
-
-<button onclick="show('dashboard')">Dashboard</button>
-<button onclick="show('attendance')">Attendance</button>
-<button onclick="show('staff')">Staff</button>
-<button onclick="show('commission')">Commission</button>
-<button onclick="show('messages')">Messages</button>
-<button onclick="show('notice')">Notice</button>
-
+<div id="login-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:var(--primary); display:flex; justify-content:center; align-items:center; z-index:9999;">
+    <div style="background:white; padding:40px; border-radius:15px; width:320px; text-align:center;">
+        <h2 style="color:var(--primary)">DATABASE LOGIN</h2>
+        <input type="text" id="uLogin" placeholder="Username" style="width:100%; padding:12px; margin-bottom:10px; border:1px solid #ddd; border-radius:5px;">
+        <input type="password" id="pLogin" placeholder="Password" style="width:100%; padding:12px; border-radius:5px; margin-bottom:20px; border:1px solid #ddd;">
+        <button onclick="handleLogin()" style="width:100%; padding:12px; background:var(--gold); border:none; color:white; font-weight:bold; cursor:pointer; border-radius:8px;">LOGIN</button>
+    </div>
 </div>
 
-<section id="dashboard">
+<div id="app-content" class="hidden">
+    <div class="sidebar">
+        <h2 style="color:var(--gold)">Prakriti CRM</h2>
+        <p id="roleLabel" style="font-weight:bold; border-bottom:1px solid rgba(255,255,255,0.2); padding-bottom:10px;"></p>
+        <nav>
+            <button onclick="showSec('att-sec')">Daily Attendance</button>
+            <button onclick="showSec('staff-sec')">Staff Management</button>
+            <button onclick="showSec('comm-sec')">Commission Analysis</button>
+            <button onclick="showSec('msg-sec')">Message Board</button>
+            <button onclick="location.reload()" style="background:var(--warn); margin-top:40px;">LOGOUT</button>
+        </nav>
+    </div>
 
-<h3>Dashboard</h3>
-<p>Welcome to Prakriti Herbs CRM</p>
+    <div class="main">
+        <div class="mobile-msg hidden">⚠️ Mobile View: Attendance Punching Disabled.</div>
 
-</section>
+        <section id="att-sec">
+            <h1>Attendance Panel</h1>
+            <div class="card" style="text-align:center;">
+                <button class="punch-btn btn-gold" onclick="punch('in')" style="background:#27ae60; color:white;">PUNCH IN</button>
+                <button class="punch-btn btn-gold" onclick="punch('out')" style="background:#e67e22; color:white; margin-left:10px;">PUNCH OUT</button>
+            </div>
+            <div class="card">
+                <h3>Today's Live Records</h3>
+                <table>
+                    <thead><tr><th>Staff</th><th>In Time</th><th>Out Time</th></tr></thead>
+                    <tbody id="attLogBody"></tbody>
+                </table>
+            </div>
+        </section>
 
-<section id="attendance">
+        <section id="staff-sec" class="hidden">
+            <h1>Team Master</h1>
+            <div class="card super-only">
+                <h3>Add New Member</h3>
+                <input type="text" id="addName" placeholder="Name">
+                <input type="number" id="addSal" placeholder="Salary">
+                <button class="btn-gold" onclick="addM()">Save Staff</button>
+            </div>
+            <div class="card">
+                <table id="staffTable">
+                    <thead><tr><th>Name</th><th>Salary</th><th>Actions</th></tr></thead>
+                    <tbody id="staffGridBody"></tbody>
+                </table>
+            </div>
+        </section>
 
-<h3>Attendance Punch</h3>
-
-<button onclick="punchIn()">Punch In</button>
-<button onclick="punchOut()">Punch Out</button>
-
-<p id="punchStatus"></p>
-
-</section>
-
-<section id="staff">
-
-<h3>Add Staff</h3>
-
-<input id="staffName" placeholder="Name">
-<input id="staffMobile" placeholder="Mobile">
-<input id="staffSalary" placeholder="Basic Salary">
-
-<button onclick="addStaff()">Add Staff</button>
-
-<table>
-
-<thead>
-
-<tr>
-<th>Name</th>
-<th>Mobile</th>
-<th>Salary</th>
-</tr>
-
-</thead>
-
-<tbody id="staffList"></tbody>
-
-</table>
-
-</section>
-
-<section id="commission">
-
-<h3>Commission Calculator</h3>
-
-<input id="amount" placeholder="Amount">
-
-<button onclick="calcCommission()">Calculate</button>
-
-<p id="commissionResult"></p>
-
-</section>
-
-<section id="messages">
-
-<h3>Send Message</h3>
-
-<textarea id="msg"></textarea>
-
-<button onclick="sendMessage()">Send</button>
-
-</section>
-
-<section id="notice">
-
-<h3>Notice Board</h3>
-
-<input id="noticeTitle" placeholder="Title">
-
-<textarea id="noticeText"></textarea>
-
-<button onclick="publishNotice()">Publish</button>
-
-</section>
+        <section id="comm-sec" class="hidden">
+            <h1>Commission Analysis</h1>
+            <div class="card">
+                <h3>Upload Sales Excel/CSV</h3>
+                <input type="file" id="fileIn" accept=".csv, .xlsx" onchange="calcComm(event)">
+                <button class="btn-gold" style="margin-top:10px;" onclick="exportToExcel()">Download Results</button>
+            </div>
+            <div class="card">
+                <table id="commResultTable">
+                    <thead><tr><th>Staff</th><th>Orders</th><th>Commission</th></tr></thead>
+                    <tbody id="commResultBody"></tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+</div>
 
 <script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyCVM97hn0e8GJFIIfCwDfRhfwUr2ORuT6c",
+        authDomain: "prakriti-crm.firebaseapp.com",
+        databaseURL: "https://prakriti-crm-default-rtdb.firebaseio.com/",
+        projectId: "prakriti-crm",
+        storageBucket: "prakriti-crm.firebasestorage.app"
+    };
 
-const firebaseConfig = {
-apiKey: "AIzaSyCVM97hn0e8GJFIIfCwDfRhfwUr2ORuT6c",
-authDomain: "prakriti-crm.firebaseapp.com",
-databaseURL: "https://prakriti-crm-default-rtdb.firebaseio.com/",
-projectId: "prakriti-crm",
-storageBucket: "prakriti-crm.firebasestorage.app",
-messagingSenderId: "112370671498",
-appId: "1:112370671498:web:2700028af8e26ab0087273"
-};
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    let currentUser = null;
 
-firebase.initializeApp(firebaseConfig);
+    function handleLogin() {
+        const u = document.getElementById('uLogin').value.toLowerCase();
+        const p = document.getElementById('pLogin').value;
 
-const db = firebase.database();
+        db.ref('users/' + u).once('value', (snap) => {
+            const data = snap.val();
+            if(data && data.password == p) {
+                currentUser = { name: u.toUpperCase(), role: data.role };
+                startApp();
+            } else { alert("Invalid Credentials!"); }
+        });
+    }
 
-function show(id){
-document.querySelectorAll("section").forEach(s=>s.style.display="none")
-document.getElementById(id).style.display="block"
-}
+    function startApp() {
+        document.getElementById('login-overlay').classList.add('hidden');
+        document.getElementById('app-content').classList.remove('hidden');
+        document.getElementById('roleLabel').innerText = `USER: ${currentUser.name} (${currentUser.role})`;
+        if(currentUser.role === 'superadmin') document.body.classList.add('is-super');
+        
+        syncStaff();
+        syncAttendance();
+    }
 
-function punchIn(){
+    function punch(type) {
+        const today = new Date().toISOString().slice(0,10);
+        db.ref(`attendance/${today}/${currentUser.name}`).update({
+            name: currentUser.name,
+            [type === 'in' ? 'punchIn' : 'punchOut']: new Date().toLocaleTimeString()
+        });
+        alert(`${type.toUpperCase()} Recorded!`);
+    }
 
-const today = new Date().toISOString().slice(0,10)
+    function syncStaff() {
+        db.ref('staff').on('value', (snap) => {
+            const data = snap.val() || {};
+            const tbody = document.getElementById('staffGridBody');
+            tbody.innerHTML = '';
+            for(let id in data) {
+                tbody.innerHTML += `<tr>
+                    <td>${data[id].name}</td><td>₹${data[id].salary}</td>
+                    <td>
+                        <button class="super-only" onclick="deleteS('${id}')" style="background:red; color:white; border:none; padding:5px; border-radius:3px;">Delete</button>
+                    </td>
+                </tr>`;
+            }
+        });
+    }
 
-db.ref("attendance/"+today+"/demo").update({
+    window.addM = () => {
+        const n = document.getElementById('addName').value;
+        const s = document.getElementById('addSal').value;
+        if(n) db.ref('staff').push({ name: n, salary: s });
+    };
 
-punchIn:new Date().toLocaleTimeString()
+    window.deleteS = (id) => { if(confirm("Delete this member?")) db.ref(`staff/${id}`).remove(); };
 
-})
+    function syncAttendance() {
+        const today = new Date().toISOString().slice(0,10);
+        db.ref(`attendance/${today}`).on('value', (snap) => {
+            const data = snap.val() || {};
+            const tbody = document.getElementById('attLogBody');
+            tbody.innerHTML = '';
+            for(let id in data) {
+                tbody.innerHTML += `<tr><td>${data[id].name}</td><td>${data[id].punchIn || '--'}</td><td>${data[id].punchOut || '--'}</td></tr>`;
+            }
+        });
+    }
 
-document.getElementById("punchStatus").innerText="Punch In Recorded"
-
-}
-
-function punchOut(){
-
-const today = new Date().toISOString().slice(0,10)
-
-db.ref("attendance/"+today+"/demo").update({
-
-punchOut:new Date().toLocaleTimeString()
-
-})
-
-document.getElementById("punchStatus").innerText="Punch Out Recorded"
-
-}
-
-function addStaff(){
-
-const name=document.getElementById("staffName").value
-const mobile=document.getElementById("staffMobile").value
-const salary=document.getElementById("staffSalary").value
-
-db.ref("staff").push({
-
-name:name,
-mobile:mobile,
-salary:salary
-
-})
-
-alert("Staff Added")
-
-}
-
-function calcCommission(){
-
-const amt=parseFloat(document.getElementById("amount").value)
-
-let commission
-
-if(amt<1000){
-commission=10
-}else{
-commission=(amt-1000)*0.10
-}
-
-document.getElementById("commissionResult").innerText="Commission: "+commission
-
-}
-
-function sendMessage(){
-
-const msg=document.getElementById("msg").value
-
-db.ref("messages").push({
-
-text:msg,
-time:Date.now()
-
-})
-
-alert("Message Sent")
-
-}
-
-function publishNotice(){
-
-const title=document.getElementById("noticeTitle").value
-const text=document.getElementById("noticeText").value
-
-db.ref("notices").push({
-
-title:title,
-text:text,
-time:Date.now()
-
-})
-
-alert("Notice Published")
-
-}
-
+    function showSec(id) {
+        document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+        document.getElementById(id).classList.remove('hidden');
+    }
 </script>
-
 </body>
 </html>
