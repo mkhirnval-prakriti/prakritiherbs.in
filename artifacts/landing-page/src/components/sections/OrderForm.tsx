@@ -15,18 +15,17 @@ function sendToGoogleSheet(
   data: { name: string; phone: string; address: string; pincode: string; quantity: number; product: string },
   source: "COD" | "Online Attempt"
 ) {
-  const payload = {
+  const params = new URLSearchParams({
     date: new Date().toLocaleString("en-GB"),
     name: data.name,
     mobile: data.phone,
     address: data.address,
     pincode: data.pincode || "111111",
     source,
-  };
-  fetch(GOOGLE_SHEET_URL, {
-    method: "POST",
+  });
+  fetch(`${GOOGLE_SHEET_URL}?${params.toString()}`, {
+    method: "GET",
     mode: "no-cors",
-    body: JSON.stringify(payload),
   }).catch(() => {});
 }
 
@@ -128,22 +127,16 @@ export function OrderForm() {
   });
 
   const onSubmit = (data: OrderFormValues) => {
-    mutate(
-      { data },
-      {
-        onSuccess: (response) => {
-          sendToGoogleSheet(data, "COD");
-          const msg = encodeURIComponent(
-            `*New COD Order:*\n*Product:* ${data.product}\n*Name:* ${data.name}\n*Mobile:* ${data.phone}\n*Address:* ${data.address}\n*Pincode:* ${data.pincode}\n*Qty:* ${data.quantity}\n*Order ID:* ${response.orderId}`
-          );
-          window.open(`https://wa.me/918968122246?text=${msg}`, "_blank");
-          setShowSuccess({ orderId: response.orderId });
-        },
-        onError: () => {
-          alert("Failed to submit order. Please try calling us instead.");
-        },
-      }
+    sendToGoogleSheet(data, "COD");
+
+    const tempOrderId = `KG${Date.now().toString().slice(-6)}`;
+    const msg = encodeURIComponent(
+      `*New COD Order:*\n*Product:* ${data.product}\n*Name:* ${data.name}\n*Mobile:* ${data.phone}\n*Address:* ${data.address}\n*Pincode:* ${data.pincode}\n*Qty:* ${data.quantity}`
     );
+    window.open(`https://wa.me/918968122246?text=${msg}`, "_blank");
+    setShowSuccess({ orderId: tempOrderId });
+
+    mutate({ data }, { onSuccess: () => {}, onError: () => {} });
   };
 
   const handleCashfreeClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
