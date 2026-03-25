@@ -1,0 +1,174 @@
+Upgrade my existing React + Vite landing page for “KamaSutra Gold+” by Prakriti Herbs into a NEXT-LEVEL HIGH-CONVERTING SALES MACHINE.
+
+MAIN GOAL:
+Maximize conversions (COD orders, WhatsApp clicks, calls) using sales psychology, urgency, trust, and modern UI.
+
+---
+
+🎨 PREMIUM UI DESIGN:
+
+* Mobile-first, ultra modern UI
+* Colors:
+  Gold (#C9A14A)
+  Dark Green (#1B5E20)
+  Cream (#FFF8E1)
+* Add gradients, shadows, card layout, rounded corners
+* Smooth scroll + subtle animations
+
+---
+
+🔥 HERO SECTION:
+
+* Heading:
+  “KamaSutra Gold+ – 7 दिन में असर महसूस करें”
+* Subheading:
+  “100% आयुर्वेदिक | बिना साइड इफेक्ट | पुरुष शक्ति बढ़ाएं”
+* Add badges:
+  ✔ 100% Ayurvedic
+  ✔ No Side Effects
+  ✔ Fast Result
+  ✔ COD Available
+* Add red badge:
+  “LIMITED STOCK”
+* CTA buttons:
+  👉 Order Now
+  👉 WhatsApp Order
+
+---
+
+🟢 STICKY BUTTONS:
+
+* WhatsApp (bottom left)
+  Number: 8968122246
+* Call button (bottom right)
+  Number: 8968122246
+
+---
+
+🖼 PRODUCT SECTION:
+
+* Multiple images (slider/gallery)
+* Zoom effect
+* Badge:
+  “Best Selling Ayurvedic Formula”
+
+---
+
+🌿 BENEFITS + INGREDIENTS:
+
+* Icon cards layout
+* Show:
+  Ashwagandha → stamina
+  Shilajit → power
+  Safed Musli → performance
+* Heading:
+  “क्यों चुनें KamaSutra Gold+?”
+
+---
+
+⚡ RESULT SECTION:
+
+* Before / After comparison
+* Lines:
+  “कमजोरी से ताकत”
+  “थकान से ऊर्जा”
+* Emotional triggers
+
+---
+
+⭐ REVIEWS:
+
+* 8 realistic reviews
+* Star rating ⭐⭐⭐⭐⭐
+* Names + Indian cities
+* Highlight one “Top Review”
+
+---
+
+⏳ URGENCY SYSTEM:
+
+* “आज का ऑफर – 10% Discount”
+* Countdown timer (static allowed)
+* Line:
+  “Offer valid for today only”
+
+---
+
+🚨 LIVE ORDER POPUP:
+
+* Show fake live orders every 5–10 seconds
+* Example:
+  “Rohit from Delhi just ordered 2 packs”
+  “Amit from Jaipur placed order”
+
+---
+
+📦 COD ORDER FORM:
+
+* Premium card UI
+* Fields:
+  Name, Phone, Address, Pincode, Quantity
+* Button:
+  “Place Order Now”
+* Note:
+  “Cash on Delivery Available”
+* On submit:
+  Show success message
+
+---
+
+💬 WHATSAPP AUTO MESSAGE:
+
+* On form submit → open WhatsApp with prefilled:
+  Name, Phone, Address, Quantity
+
+---
+
+📞 EXTRA CTA SECTION:
+
+* Add section:
+  “Need Help? Talk to Expert Now”
+* Button:
+  Call Now → 8968122246
+
+---
+
+🛡 TRUST ELEMENTS:
+
+* Icons:
+  ✔ Secure Order
+  ✔ COD Available
+  ✔ 100% Herbal
+  ✔ Privacy Protected
+
+---
+
+📢 FACEBOOK ADS OPTIMIZATION:
+
+* Fast loading
+* Scroll stopping headings
+* Add:
+  “Limited Stock”
+  “Only Today Offer”
+
+---
+
+🔍 SEO:
+
+* Title:
+  “KamaSutra Gold+ | Ayurvedic Power Booster”
+* Description:
+  “Increase stamina naturally with Ayurvedic formula. Order now with COD.”
+
+---
+
+⚙️ PERFORMANCE:
+
+* Optimized images
+* Clean React components
+* Fast mobile performance
+
+---
+
+FINAL OUTPUT:
+Return full updated React code with all sections implemented and working.
