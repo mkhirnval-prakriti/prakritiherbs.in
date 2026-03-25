@@ -43,10 +43,8 @@ export function OrderForm() {
             message: response.message
           });
         },
-        onError: (error) => {
-          // Normally handle via toast, but we'll use a simple alert here for simplicity
+        onError: () => {
           alert("Failed to submit order. Please try calling us instead.");
-          console.error(error);
         }
       }
     );
@@ -86,7 +84,6 @@ export function OrderForm() {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="max-w-6xl mx-auto bg-card rounded-3xl shadow-2xl border border-border overflow-hidden flex flex-col lg:flex-row">
           
-          {/* Info Side */}
           <div className="lg:w-2/5 bg-secondary text-secondary-foreground p-8 md:p-12 relative overflow-hidden flex flex-col justify-between">
             <div className="absolute inset-0 bg-noise opacity-20 mix-blend-overlay"></div>
             <div className="absolute -top-24 -left-24 w-64 h-64 bg-primary/20 rounded-full blur-3xl"></div>
@@ -134,7 +131,6 @@ export function OrderForm() {
             </div>
           </div>
 
-          {/* Form Side */}
           <div className="lg:w-3/5 p-8 md:p-12">
             <h3 className="text-2xl font-bold mb-8 flex items-center gap-2">
               Cash on Delivery (COD) Form
@@ -142,8 +138,6 @@ export function OrderForm() {
             
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* Name */}
                 <div className="space-y-2">
                   <label htmlFor="name" className="text-sm font-semibold text-foreground">Full Name *</label>
                   <input
@@ -156,7 +150,6 @@ export function OrderForm() {
                   {errors.name && <p className="text-destructive text-sm mt-1">{errors.name.message}</p>}
                 </div>
 
-                {/* Phone */}
                 <div className="space-y-2">
                   <label htmlFor="phone" className="text-sm font-semibold text-foreground">Phone Number *</label>
                   <div className="relative">
@@ -172,7 +165,6 @@ export function OrderForm() {
                   {errors.phone && <p className="text-destructive text-sm mt-1">{errors.phone.message}</p>}
                 </div>
 
-                {/* Address */}
                 <div className="space-y-2 md:col-span-2">
                   <label htmlFor="address" className="text-sm font-semibold text-foreground">Complete Address *</label>
                   <textarea
@@ -185,7 +177,6 @@ export function OrderForm() {
                   {errors.address && <p className="text-destructive text-sm mt-1">{errors.address.message}</p>}
                 </div>
 
-                {/* Pincode */}
                 <div className="space-y-2">
                   <label htmlFor="pincode" className="text-sm font-semibold text-foreground">Pincode *</label>
                   <input
@@ -198,7 +189,6 @@ export function OrderForm() {
                   {errors.pincode && <p className="text-destructive text-sm mt-1">{errors.pincode.message}</p>}
                 </div>
 
-                {/* Quantity */}
                 <div className="space-y-2">
                   <label htmlFor="quantity" className="text-sm font-semibold text-foreground">Quantity (Bottles) *</label>
                   <select
@@ -213,7 +203,6 @@ export function OrderForm() {
                   {errors.quantity && <p className="text-destructive text-sm mt-1">{errors.quantity.message}</p>}
                 </div>
 
-                {/* Hidden Product field */}
                 <input type="hidden" {...register("product")} />
 
               </div>

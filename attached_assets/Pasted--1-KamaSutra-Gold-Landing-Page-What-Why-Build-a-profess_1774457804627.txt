@@ -1,0 +1,35 @@
+#1 - KamaSutra Gold+ Landing Page
+What & Why
+Build a professional, mobile-first Ayurvedic product landing page for "KamaSutra Gold+" by Prakriti Herbs. The page needs to convert visitors into customers through compelling product presentation and easy ordering options.
+
+Done looks like
+Hero section with product name "KamaSutra Gold+" and Prakriti Herbs branding, tagline, and key benefit badges
+Product image gallery section showcasing the product visually
+Benefits/ingredients section highlighting Ayurvedic herbs and their effects
+Customer reviews section with star ratings and testimonials (at least 5 reviews)
+COD (Cash on Delivery) order form capturing: name, phone number, address, pincode, and quantity
+Sticky floating WhatsApp button linking to WhatsApp order chat
+Sticky floating call button linking to a phone number
+Mobile-first responsive design with warm Ayurvedic color palette (golds, earthy tones, deep greens)
+SEO meta tags (title, description, Open Graph)
+Form submission shows a thank-you confirmation message
+Out of scope
+Real payment gateway integration
+Backend order management system
+User accounts or authentication
+Admin dashboard
+Tasks
+Create the react-vite artifact — Scaffold a new React + Vite web app at the root path "/" with slug "landing-page".
+
+Update OpenAPI spec and run codegen — Add an order submission endpoint (POST /orders) to the OpenAPI spec, then run codegen to generate React Query hooks and Zod schemas.
+
+Build the frontend — Use generateFrontend() to generate the complete landing page with all sections: hero, product gallery, benefits, reviews, COD order form, and floating contact buttons. Pass Ayurvedic warm color mood.
+
+Implement the backend order route — Add a POST /api/orders route to the API server that validates and stores order submissions (name, phone, address, pincode, quantity, product). Create the orders DB schema and run migrations.
+
+Relevant files
+lib/api-spec/openapi.yaml
+artifacts/api-server/src/routes/index.ts
+artifacts/api-server/src/routes/health.ts
+artifacts/api-server/src/app.ts
+lib/db/src/schema/index.ts
