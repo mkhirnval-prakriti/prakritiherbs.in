@@ -18,15 +18,15 @@ export function Footer() {
 
           <div className="flex flex-col items-center md:items-end gap-2 text-white/80 text-center md:text-right">
             <p className="font-semibold text-white">Contact Us</p>
-            <a href="tel:+919876543210" className="hover:text-primary transition-colors">Call: +91 98765 43210</a>
-            <a href="https://wa.me/919876543210" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">WhatsApp: +91 98765 43210</a>
+            <a href="tel:+918968122246" className="hover:text-primary transition-colors">Call: +91 89681 22246</a>
+            <a href="https://wa.me/918968122246" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">WhatsApp: +91 89681 22246</a>
             <p className="text-sm mt-2 text-white/50">Support Hours: 9 AM to 7 PM</p>
           </div>
 
         </div>
 
         <div className="flex flex-col md:flex-row justify-between items-center text-sm text-white/50">
-          <p>© {new Date().getFullYear()} Prakriti Herbs. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} Prakriti Herbs Private Limited. All rights reserved.</p>
           <div className="flex gap-6 mt-4 md:mt-0">
             <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
             <a href="#" className="hover:text-white transition-colors">Terms of Service</a>

@@ -42,6 +42,10 @@ export function OrderForm() {
             orderId: response.orderId,
             message: response.message
           });
+          const msg = encodeURIComponent(
+            `New Order:\nProduct: ${data.product}\nName: ${data.name}\nMobile: ${data.phone}\nAddress: ${data.address}\nPincode: ${data.pincode}\nQty: ${data.quantity}\nOrder ID: ${response.orderId}`
+          );
+          window.open(`https://wa.me/918968122246?text=${msg}`, "_blank");
         },
         onError: () => {
           alert("Failed to submit order. Please try calling us instead.");
@@ -122,7 +126,7 @@ export function OrderForm() {
               <div className="flex items-center gap-4">
                 <div className="font-display">
                   <p className="text-sm text-secondary-foreground/70 uppercase tracking-widest font-bold">Total Price</p>
-                  <p className="text-3xl font-bold text-white">₹1,499 <span className="text-sm font-sans font-normal text-secondary-foreground/70 line-through">₹2,999</span></p>
+                  <p className="text-3xl font-bold text-white">₹999 <span className="text-sm font-sans font-normal text-secondary-foreground/70 line-through">₹1,999</span></p>
                 </div>
                 <div className="bg-primary text-primary-foreground text-xs font-bold px-3 py-1 rounded-full uppercase">
                   50% OFF
@@ -196,9 +200,9 @@ export function OrderForm() {
                     {...register("quantity")}
                     className={`w-full px-4 py-3 rounded-xl border bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors ${errors.quantity ? 'border-destructive' : 'border-border'}`}
                   >
-                    <option value="1">1 Bottle - ₹1,499</option>
-                    <option value="2">2 Bottles - ₹2,799 (Save Extra)</option>
-                    <option value="3">3 Bottles - ₹3,999 (Best Value)</option>
+                    <option value="1">1 Bottle - ₹999</option>
+                    <option value="2">2 Bottles - ₹1,899 (Save ₹99)</option>
+                    <option value="3">3 Bottles - ₹2,699 (Best Value)</option>
                   </select>
                   {errors.quantity && <p className="text-destructive text-sm mt-1">{errors.quantity.message}</p>}
                 </div>

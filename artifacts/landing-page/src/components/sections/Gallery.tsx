@@ -3,18 +3,21 @@ import { motion } from "framer-motion";
 export function Gallery() {
   const images = [
     {
-      src: `${import.meta.env.BASE_URL}images/gallery-1.png`,
-      alt: "Ayurvedic Herbs",
+      src: `${import.meta.env.BASE_URL}images/product1.jpg`,
+      fallback: `${import.meta.env.BASE_URL}images/gallery-1.png`,
+      alt: "KamaSutra Gold+ Product",
       className: "col-span-1 row-span-1",
     },
     {
-      src: `${import.meta.env.BASE_URL}images/gallery-2.png`,
-      alt: "Healthy Lifestyle",
+      src: `${import.meta.env.BASE_URL}images/product2.jpg`,
+      fallback: `${import.meta.env.BASE_URL}images/gallery-2.png`,
+      alt: "KamaSutra Gold+ Benefits",
       className: "col-span-1 row-span-2",
     },
     {
-      src: `${import.meta.env.BASE_URL}images/gallery-3.png`,
-      alt: "Premium Bottle Details",
+      src: `${import.meta.env.BASE_URL}images/product3.jpg`,
+      fallback: `${import.meta.env.BASE_URL}images/gallery-3.png`,
+      alt: "KamaSutra Gold+ Packaging",
       className: "col-span-1 row-span-1",
     },
   ];
@@ -46,6 +49,7 @@ export function Gallery() {
                 src={img.src}
                 alt={img.alt}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                onError={(e) => { (e.target as HTMLImageElement).src = img.fallback; }}
               />
             </motion.div>
           ))}

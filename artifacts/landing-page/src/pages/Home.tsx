@@ -1,3 +1,4 @@
+import { Header } from "@/components/Header";
 import { Hero } from "@/components/sections/Hero";
 import { Gallery } from "@/components/sections/Gallery";
 import { Ingredients } from "@/components/sections/Ingredients";
@@ -9,15 +10,18 @@ import { FloatingContact } from "@/components/FloatingContact";
 
 export default function Home() {
   return (
-    <main className="min-h-screen w-full flex flex-col bg-background font-sans overflow-x-hidden">
-      <Hero />
-      <Gallery />
-      <Ingredients />
-      <HowItWorks />
-      <Reviews />
-      <OrderForm />
+    <div className="min-h-screen w-full flex flex-col bg-background font-sans overflow-x-hidden">
+      <Header />
+      <main>
+        <Hero />
+        <Gallery />
+        <Ingredients />
+        <HowItWorks />
+        <Reviews />
+        <OrderForm />
+      </main>
       <Footer />
       <FloatingContact />
-    </main>
+    </div>
   );
 }

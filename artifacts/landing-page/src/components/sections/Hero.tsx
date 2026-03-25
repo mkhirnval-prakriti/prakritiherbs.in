@@ -75,9 +75,10 @@ export function Hero() {
           >
             <div className="aspect-[3/4] relative rounded-2xl overflow-hidden shadow-2xl shadow-black/40 border border-primary/20">
               <img 
-                src={`${import.meta.env.BASE_URL}images/hero-bottle.png`} 
+                src={`${import.meta.env.BASE_URL}images/product1.jpg`} 
                 alt="KamaSutra Gold+ Premium Ayurvedic Bottle" 
                 className="object-cover w-full h-full"
+                onError={(e) => { (e.target as HTMLImageElement).src = `${import.meta.env.BASE_URL}images/hero-bottle.png`; }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
             </div>

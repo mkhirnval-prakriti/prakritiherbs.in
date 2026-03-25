@@ -2,8 +2,8 @@ import { Phone, MessageCircle } from "lucide-react";
 import { motion } from "framer-motion";
 
 export function FloatingContact() {
-  const phoneNumber = "+919876543210";
-  const whatsappLink = `https://wa.me/919876543210?text=${encodeURIComponent("I want to order KamaSutra Gold+")}`;
+  const phoneNumber = "+918968122246";
+  const whatsappLink = `https://wa.me/918968122246?text=${encodeURIComponent("I want to order KamaSutra Gold+")}`;
   const callLink = `tel:${phoneNumber}`;
 
   return (
