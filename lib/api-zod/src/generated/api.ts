@@ -14,3 +14,36 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * Submit a Cash on Delivery order for KamaSutra Gold+
+ * @summary Place a COD order
+ */
+export const createOrderBodyNameMin = 2;
+export const createOrderBodyNameMax = 100;
+
+export const createOrderBodyPhoneMin = 10;
+export const createOrderBodyPhoneMax = 15;
+
+export const createOrderBodyAddressMin = 10;
+export const createOrderBodyAddressMax = 500;
+
+export const createOrderBodyPincodeMin = 6;
+export const createOrderBodyPincodeMax = 10;
+
+export const createOrderBodyQuantityMax = 10;
+
+export const CreateOrderBody = zod.object({
+  name: zod.string().min(createOrderBodyNameMin).max(createOrderBodyNameMax),
+  phone: zod.string().min(createOrderBodyPhoneMin).max(createOrderBodyPhoneMax),
+  address: zod
+    .string()
+    .min(createOrderBodyAddressMin)
+    .max(createOrderBodyAddressMax),
+  pincode: zod
+    .string()
+    .min(createOrderBodyPincodeMin)
+    .max(createOrderBodyPincodeMax),
+  quantity: zod.number().min(1).max(createOrderBodyQuantityMax),
+  product: zod.string(),
+});

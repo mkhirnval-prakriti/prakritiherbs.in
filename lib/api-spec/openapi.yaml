@@ -1,6 +1,5 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
   description: API specification
@@ -10,6 +9,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: orders
+    description: Order operations
 paths:
   /healthz:
     get:
@@ -24,6 +25,31 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /orders:
+    post:
+      operationId: createOrder
+      tags: [orders]
+      summary: Place a COD order
+      description: Submit a Cash on Delivery order for KamaSutra Gold+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRequest"
+      responses:
+        "201":
+          description: Order placed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderResponse"
+        "400":
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +59,55 @@ components:
           type: string
       required:
         - status
-
+    CreateOrderRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+        phone:
+          type: string
+          minLength: 10
+          maxLength: 15
+        address:
+          type: string
+          minLength: 10
+          maxLength: 500
+        pincode:
+          type: string
+          minLength: 6
+          maxLength: 10
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 10
+        product:
+          type: string
+      required:
+        - name
+        - phone
+        - address
+        - pincode
+        - quantity
+        - product
+    OrderResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        message:
+          type: string
+        orderId:
+          type: string
+      required:
+        - id
+        - message
+        - orderId
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error

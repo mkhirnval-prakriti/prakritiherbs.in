@@ -8,3 +8,42 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface CreateOrderRequest {
+  /**
+   * @minLength 2
+   * @maxLength 100
+   */
+  name: string;
+  /**
+   * @minLength 10
+   * @maxLength 15
+   */
+  phone: string;
+  /**
+   * @minLength 10
+   * @maxLength 500
+   */
+  address: string;
+  /**
+   * @minLength 6
+   * @maxLength 10
+   */
+  pincode: string;
+  /**
+   * @minimum 1
+   * @maximum 10
+   */
+  quantity: number;
+  product: string;
+}
+
+export interface OrderResponse {
+  id: number;
+  message: string;
+  orderId: string;
+}
+
+export interface ErrorResponse {
+  error: string;
+}

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prakriti Herbs</title>
+
+<style>
+body {margin:0;font-family:Arial;background:#f4f7f6;}
+
+.header {text-align:center;padding:15px;background:white;}
+.header img {height:70px;}
+
+.hero {text-align:center;padding:30px;background:#2d5a27;color:white;}
+.hero img {width:220px;margin-top:15px;border-radius:10px;}
+
+.btn {padding:10px 18px;margin:5px;border:none;border-radius:6px;font-weight:bold;cursor:pointer;}
+.whatsapp {background:#25D366;color:white;}
+.call {background:#3498db;color:white;}
+
+.section {background:white;margin:15px;padding:20px;border-radius:10px;text-align:center;}
+.products img {width:180px;margin:10px;border-radius:10px;}
+
+.price {font-size:22px;color:red;font-weight:bold;}
+
+input {width:100%;padding:10px;margin:6px 0;}
+
+.footer {background:#2d5a27;color:white;text-align:center;padding:15px;}
+
+.sticky {position:fixed;bottom:15px;right:15px;background:#25D366;color:white;padding:12px;border-radius:50px;}
+</style>
+</head>
+
+<body>
+
+<div class="header">
+<img src="logo.png">
+</div>
+
+<div class="hero">
+<h1>KamaSutra Gold+</h1>
+<p>100% Pure Ayurvedic Formula</p>
+<p>Stamina | Power | Performance</p>
+
+<a href="https://wa.me/918968122246">
+<button class="btn whatsapp">WhatsApp Order</button>
+</a>
+
+<a href="tel:8968122246">
+<button class="btn call">Call Now</button>
+</a>
+
+<br>
+<img src="product1.jpg">
+</div>
+
+<div class="section">
+<h2>🔥 Limited Time Offer</h2>
+
+<div class="products">
+<img src="product2.jpg">
+<img src="product3.jpg">
+</div>
+
+<p>✔ Stamina Boost</p>
+<p>✔ Performance Improvement</p>
+<p>✔ No Side Effects</p>
+
+<p class="price">₹1999 → ₹999</p>
+<p>⚠️ Limited Stock Available</p>
+</div>
+
+<div class="section">
+<h2>⭐ Customer Reviews</h2>
+<p>⭐⭐⭐⭐⭐ "Very good results"</p>
+<p>⭐⭐⭐⭐⭐ "Energy and stamina improved"</p>
+</div>
+
+<div class="section">
+<h2>📦 COD Order Form</h2>
+
+<form onsubmit="sendOrder(event)">
+<input type="text" id="name" placeholder="Customer Name" required>
+<input type="tel" id="mobile" placeholder="Mobile Number" pattern="[0-9]{10}" required>
+<input type="text" id="address" placeholder="Address" required>
+<input type="text" id="pincode" placeholder="Pincode" required>
+
+<button class="btn whatsapp" style="width:100%;">Order Now</button>
+</form>
+</div>
+
+<div class="footer">
+© 2026 Prakriti Herbs Private Limited
+</div>
+
+<a href="https://wa.me/918968122246" class="sticky">WhatsApp</a>
+
+<script>
+function sendOrder(e){
+e.preventDefault();
+
+alert("Order submitted! WhatsApp opening...");
+
+let name = document.getElementById("name").value;
+let mobile = document.getElementById("mobile").value;
+let address = document.getElementById("address").value;
+let pincode = document.getElementById("pincode").value;
+
+let msg = `New Order:%0AName:${name}%0AMobile:${mobile}%0AAddress:${address}%0APincode:${pincode}`;
+
+window.open("https://wa.me/918968122246?text="+msg,"_blank");
+}
+</script>
+
+</body>
+</html>
