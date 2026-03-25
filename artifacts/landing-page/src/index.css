@@ -24,42 +24,42 @@
 }
 
 :root {
-  /* Warm Pearl Background */
-  --background: 40 33% 98%;
-  /* Deep Espresso */
-  --foreground: 24 20% 15%;
-  
-  /* Rich Gold */
-  --primary: 43 74% 49%;
-  --primary-foreground: 24 20% 15%;
-  
-  /* Ayurvedic Forest Green */
-  --secondary: 142 35% 20%;
-  --secondary-foreground: 40 33% 98%;
-  
-  /* Soft Cream for Muted areas */
-  --muted: 40 20% 92%;
-  --muted-foreground: 24 10% 45%;
-  
-  /* Terracotta Earthy Orange */
+  /* Cream background #FFF8E1 */
+  --background: 46 100% 94%;
+  /* Deep Charcoal */
+  --foreground: 24 20% 12%;
+
+  /* Gold #C9A14A */
+  --primary: 41 54% 54%;
+  --primary-foreground: 24 20% 12%;
+
+  /* Dark Green #1B5E20 */
+  --secondary: 124 55% 24%;
+  --secondary-foreground: 46 100% 94%;
+
+  /* Soft muted cream */
+  --muted: 46 60% 90%;
+  --muted-foreground: 24 10% 42%;
+
+  /* Warm orange accent */
   --accent: 15 65% 50%;
   --accent-foreground: 0 0% 100%;
-  
+
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
-  
-  --border: 43 30% 85%;
-  --ring: 43 74% 49%;
-  
+
+  --border: 41 30% 80%;
+  --ring: 41 54% 54%;
+
   --card: 0 0% 100%;
-  --card-foreground: 24 20% 15%;
+  --card-foreground: 24 20% 12%;
 }
 
 @layer base {
   * {
     @apply border-border;
   }
-  
+
   html {
     scroll-behavior: smooth;
   }
@@ -76,9 +76,15 @@
 
 @layer utilities {
   .text-gradient {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-yellow-600;
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-yellow-500;
   }
   .bg-noise {
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+  }
+  .gold-gradient {
+    background: linear-gradient(135deg, #C9A14A 0%, #e8c96a 50%, #C9A14A 100%);
+  }
+  .green-gradient {
+    background: linear-gradient(135deg, #1B5E20 0%, #2e7d32 60%, #1B5E20 100%);
   }
 }

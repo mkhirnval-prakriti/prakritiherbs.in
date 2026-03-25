@@ -2,39 +2,40 @@ import { Phone, MessageCircle } from "lucide-react";
 import { motion } from "framer-motion";
 
 export function FloatingContact() {
-  const phoneNumber = "+918968122246";
   const whatsappLink = `https://wa.me/918968122246?text=${encodeURIComponent("I want to order KamaSutra Gold+")}`;
-  const callLink = `tel:${phoneNumber}`;
+  const callLink = "tel:+918968122246";
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-4">
-      <motion.a
-        href={callLink}
-        initial={{ opacity: 0, scale: 0.5 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 1, duration: 0.3 }}
-        whileHover={{ scale: 1.1, y: -2 }}
-        whileTap={{ scale: 0.95 }}
-        className="flex h-14 w-14 items-center justify-center rounded-full bg-secondary text-secondary-foreground shadow-lg shadow-secondary/30 ring-4 ring-background hover:bg-secondary/90 transition-colors"
-        aria-label="Call Us"
-      >
-        <Phone className="h-6 w-6" />
-      </motion.a>
-      
+    <>
       <motion.a
         href={whatsappLink}
         target="_blank"
         rel="noopener noreferrer"
-        initial={{ opacity: 0, scale: 0.5 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 1.1, duration: 0.3 }}
-        whileHover={{ scale: 1.1, y: -2 }}
+        initial={{ opacity: 0, x: -30 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: 1.2, duration: 0.4 }}
+        whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        className="flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg shadow-[#25D366]/30 ring-4 ring-background hover:bg-[#20bd5a] transition-colors"
+        className="fixed bottom-6 left-4 z-50 flex items-center gap-2 px-4 py-3 rounded-full bg-[#25D366] text-white shadow-xl shadow-[#25D366]/40 font-bold text-sm"
         aria-label="WhatsApp Us"
       >
-        <MessageCircle className="h-7 w-7" />
+        <MessageCircle className="h-5 w-5 shrink-0" />
+        <span>WhatsApp Order</span>
       </motion.a>
-    </div>
+
+      <motion.a
+        href={callLink}
+        initial={{ opacity: 0, x: 30 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: 1.2, duration: 0.4 }}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        className="fixed bottom-6 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-full bg-secondary text-secondary-foreground shadow-xl shadow-secondary/30 font-bold text-sm"
+        aria-label="Call Us"
+      >
+        <Phone className="h-5 w-5 shrink-0" />
+        <span>Call Now</span>
+      </motion.a>
+    </>
   );
 }
