@@ -9,7 +9,6 @@ import { BeforeAfter } from "@/components/sections/BeforeAfter";
 import { HowItWorks } from "@/components/sections/HowItWorks";
 import { Reviews } from "@/components/sections/Reviews";
 import { OrderForm } from "@/components/sections/OrderForm";
-import { CashfreePayment } from "@/components/sections/CashfreePayment";
 import { ExpertCTA } from "@/components/sections/ExpertCTA";
 import { LegalSection } from "@/components/sections/LegalSection";
 import { Footer } from "@/components/sections/Footer";
@@ -31,7 +30,6 @@ export default function Home() {
         <HowItWorks />
         <Reviews />
         <OrderForm />
-        <CashfreePayment />
         <ExpertCTA />
         <LegalSection />
       </main>
