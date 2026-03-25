@@ -222,7 +222,7 @@ export function OrderForm() {
                     Processing Order...
                   </>
                 ) : (
-                  <>Place Order Now (COD)</>
+                  <>Place Order Now</>
                 )}
               </button>
               

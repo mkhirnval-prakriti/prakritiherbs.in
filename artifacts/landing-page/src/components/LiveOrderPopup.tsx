@@ -26,7 +26,7 @@ export function LiveOrderPopup() {
       setTimeout(() => setVisible(false), 3500);
     };
 
-    const timer = setInterval(show, 7000);
+    const timer = setInterval(show, 6000);
     const initial = setTimeout(show, 3000);
     return () => {
       clearInterval(timer);
@@ -37,7 +37,7 @@ export function LiveOrderPopup() {
   const order = orders[current];
 
   return (
-    <div className="fixed bottom-20 left-4 z-40 pointer-events-none">
+    <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 pointer-events-none">
       <AnimatePresence>
         {visible && (
           <motion.div
