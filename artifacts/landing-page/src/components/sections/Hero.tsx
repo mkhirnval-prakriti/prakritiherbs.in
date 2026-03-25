@@ -42,8 +42,9 @@ export function Hero() {
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight mb-4 text-white font-display">
               KamaSutra Gold+ –{" "}
-              <span className="text-primary">7 दिन में</span>
-              <br />असर महसूस करें
+              <span className="text-primary">7 दिनों में</span>
+              <br />वैवाहिक जीवन की
+              <br /><span className="text-primary">खुशियाँ वापस पायें</span>
             </h1>
 
             <p className="text-base sm:text-lg text-secondary-foreground/80 mb-6 max-w-xl font-sans">
