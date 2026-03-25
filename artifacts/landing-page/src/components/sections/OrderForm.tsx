@@ -6,6 +6,31 @@ import { z } from "zod";
 import { useCreateOrder } from "@workspace/api-client-react";
 import { Loader2, CheckCircle2, ShieldCheck, Truck } from "lucide-react";
 
+const GOOGLE_SHEET_URL =
+  "https://script.google.com/macros/s/AKfycby4dJ_8-8uKXpvBEtzNvKFl_3ZYs3rXlvLKNn5R7iOG-xd-oV9d7ha8SJK8GCEKI4yILg/exec";
+
+function sendToGoogleSheet(data: {
+  name: string;
+  phone: string;
+  address: string;
+  pincode: string;
+  quantity: number;
+  product: string;
+}) {
+  const payload = {
+    date: new Date().toLocaleString("en-GB"),
+    name: data.name,
+    mobile: data.phone,
+    address: data.address,
+    pincode: data.pincode || "111111",
+  };
+  fetch(GOOGLE_SHEET_URL, {
+    method: "POST",
+    mode: "no-cors",
+    body: JSON.stringify(payload),
+  }).catch(() => {});
+}
+
 const orderSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(100),
   phone: z.string().min(10, "Please enter a valid phone number").max(15),
@@ -42,6 +67,7 @@ export function OrderForm() {
             orderId: response.orderId,
             message: response.message
           });
+          sendToGoogleSheet(data);
           const msg = encodeURIComponent(
             `New Order:\nProduct: ${data.product}\nName: ${data.name}\nMobile: ${data.phone}\nAddress: ${data.address}\nPincode: ${data.pincode}\nQty: ${data.quantity}\nOrder ID: ${response.orderId}`
           );
