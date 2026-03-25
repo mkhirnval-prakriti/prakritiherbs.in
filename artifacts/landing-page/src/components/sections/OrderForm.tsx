@@ -14,8 +14,19 @@ function getEnglishDate() {
 }
 
 function sendToSheet(name: string, mobile: string, address: string, pincode: string, source: string) {
-  const params = new URLSearchParams({ date: getEnglishDate(), name, mobile, address, pincode, source });
-  fetch(`${GOOGLE_SHEET_URL}?${params.toString()}`, { method: "GET", mode: "no-cors" }).catch(() => {});
+  const payload = JSON.stringify({
+    date: getEnglishDate(),
+    name,
+    mobile,
+    address,
+    pincode,
+    source,
+  });
+  fetch(GOOGLE_SHEET_URL, {
+    method: "POST",
+    mode: "no-cors",
+    body: payload,
+  }).catch(() => {});
 }
 
 function SuccessModal({ onClose }: { onClose: () => void }) {
