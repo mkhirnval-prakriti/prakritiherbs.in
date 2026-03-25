@@ -5,7 +5,7 @@ import { CheckCircle2, ShieldCheck, Truck, Package, X, Loader2 } from "lucide-re
 const GOOGLE_SHEET_URL =
   "https://script.google.com/macros/s/AKfycbyh89OCWVJJePou7B73Q0H2mJBzlWewT4YORz0QF0U2AVb1QvkKLp-h0_MjveBxc_2Txw/exec";
 
-const CASHFREE_URL = "CASHFREE_URL_PLACEHOLDER";
+const CASHFREE_URL = "https://payments.cashfree.com/forms/kama";
 
 function getEnglishDate() {
   const now = new Date();
@@ -131,12 +131,7 @@ export function OrderForm() {
     if (!validate()) return;
 
     sendToSheet(name.trim(), phone.trim(), address.trim(), pincode.trim(), "Online Attempt");
-
-    if (CASHFREE_URL === "CASHFREE_URL_PLACEHOLDER") {
-      alert("Cashfree payment link not configured yet. Please contact us on WhatsApp: +91 89681 22246");
-      return;
-    }
-    window.open(CASHFREE_URL, "_blank");
+    window.open(CASHFREE_URL, "_parent");
   }
 
   function handleClose() {
