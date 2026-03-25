@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KamaSutra Gold+ | Prakriti Herbs</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .gold-gradient { background: linear-gradient(135deg, #C9A14A 0%, #B08C35 100%); }
+        .sticky-footer { position: fixed; bottom: 0; width: 100%; z-index: 50; }
+    </style>
+</head>
+<body class="bg-orange-50 font-sans">
+
+    <div class="bg-red-600 text-white text-center py-2 text-sm font-bold animate-pulse">
+        LIMITED STOCK: आज के ऑर्डर पर 40% की छूट! ऑफर खत्म होने में: <span id="timer">09:54</span>
+    </div>
+
+    <header class="bg-white p-4 shadow-md flex justify-between items-center">
+        <div class="flex items-center">
+            <div class="w-10 h-10 bg-green-700 rounded-full flex items-center justify-center text-white font-bold mr-2">PH</div>
+            <h1 class="text-xl font-bold text-green-900">PRAKRITI HERBS</h1>
+        </div>
+        <a href="tel:8696246724" class="bg-green-600 text-white px-4 py-1 rounded-full text-sm">कॉल करें</a>
+    </header>
+
+    <section class="p-6 text-center">
+        <h2 class="text-3xl font-extrabold text-gray-900 mb-4">KamaSutra Gold+ <br><span class="text-green-700 text-2xl">वैवाहिक जीवन में वापस लाएं जोश!</span></h2>
+        <p class="text-gray-700 mb-6 italic">100% आयुर्वेदिक | बिना किसी साइड इफेक्ट के | 7 दिनों में असर</p>
+        <img src="product1.jpg" alt="KamaSutra Gold+" class="mx-auto rounded-lg shadow-xl mb-6 w-64">
+        
+        <div class="flex justify-center gap-2 mb-6">
+            <span class="bg-white border border-green-200 px-3 py-1 rounded text-xs font-bold">✔ ISO Certified</span>
+            <span class="bg-white border border-green-200 px-3 py-1 rounded text-xs font-bold">✔ GMP Approved</span>
+            <span class="bg-white border border-green-200 px-3 py-1 rounded text-xs font-bold">✔ COD Available</span>
+        </div>
+    </section>
+
+    <section id="order" class="p-6 bg-white rounded-t-3xl shadow-2xl">
+        <h3 class="text-2xl font-bold text-center mb-6">ऑर्डर फॉर्म (Cash on Delivery)</h3>
+        <div class="space-y-4">
+            <input type="text" id="cust_name" placeholder="आपका पूरा नाम" class="w-full p-4 border rounded-xl bg-gray-50">
+            <input type="tel" id="cust_mobile" placeholder="मोबाइल नंबर (10 अंक)" class="w-full p-4 border rounded-xl bg-gray-50">
+            <textarea id="cust_address" placeholder="पूरा पता (मकान नंबर, गली, लैंडमार्क)" class="w-full p-4 border rounded-xl bg-gray-50"></textarea>
+            <input type="text" id="cust_pincode" placeholder="पिनकोड (6 अंक)" class="w-full p-4 border rounded-xl bg-gray-50">
+            
+            <button onclick="sendToCRM()" class="w-full gold-gradient text-white font-bold py-4 rounded-xl text-xl shadow-lg">
+                PLACE ORDER NOW (COD)
+            </button>
+        </div>
+    </section>
+
+    <div class="sticky-footer flex">
+        <a href="https://wa.me/918696246724" class="flex-1 bg-green-500 text-white py-3 text-center font-bold flex items-center justify-center border-r border-white">
+            WhatsApp Order
+        </a>
+        <a href="tel:8696246724" class="flex-1 bg-blue-600 text-white py-3 text-center font-bold flex items-center justify-center">
+            Call Assistant
+        </a>
+    </div>
+
+    <script>
+        // 1. यहाँ अपना Google Web App URL डालें
+        const CRM_URL = "YOUR_WEB_APP_URL_HERE";
+
+        function sendToCRM() {
+            const name = document.getElementById('cust_name').value;
+            const mobile = document.getElementById('cust_mobile').value;
+            const address = document.getElementById('cust_address').value;
+            const pincode = document.getElementById('cust_pincode').value || "111111";
+
+            if(name === "" || mobile.length < 10) {
+                alert("कृपया सही नाम और मोबाइल नंबर भरें!");
+                return;
+            }
+
+            const payload = {
+                date: new Date().toLocaleString('en-GB'),
+                name: name,
+                mobile: mobile,
+                address: address,
+                pincode: pincode,
+                source: "Facebook Landing Page"
+            };
+
+            // Google Sheet पर डेटा भेजना
+            fetch(CRM_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                body: JSON.stringify(payload)
+            });
+
+            alert("धन्यवाद! आपका ऑर्डर बुक हो गया है।");
+
+            // व्हाट्सएप पर मैसेज भेजना
+            const waMsg = `*New Order:*\n*Product:* KamaSutra Gold+\n*Name:* ${name}\n*Mobile:* ${mobile}\n*Address:* ${address}\n*Pincode:* ${pincode}`;
+            window.open(`https://wa.me/918696246724?text=${encodeURIComponent(waMsg)}`, '_blank');
+        }
+
+        // Timer Script
+        let time = 594; // 9:54 in seconds
+        setInterval(() => {
+            let mins = Math.floor(time / 60);
+            let secs = time % 60;
+            document.getElementById('timer').innerHTML = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+            if(time > 0) time--;
+        }, 1000);
+    </script>
+</body>
+</html>
