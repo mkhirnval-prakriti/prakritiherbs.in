@@ -7,7 +7,7 @@ import { useCreateOrder } from "@workspace/api-client-react";
 import { Loader2, CheckCircle2, ShieldCheck, Truck, Package, X } from "lucide-react";
 
 const GOOGLE_SHEET_URL =
-  "https://script.google.com/macros/s/AKfycibxibQaJfdsJvwdra6wgF6HPX1h4DhkoNOXOxAcgIuw4GnHyuvdGZoyLOeT42rvmiCnDEQ/exec";
+  "https://script.google.com/macros/s/AKfycbyh89OCWVJJePou7B73Q0H2mJBzlWewT4YORz0QF0U2AVb1QvkKLp-h0_MjveBxc_2Txw/exec";
 
 const CASHFREE_URL = "CASHFREE_URL_PLACEHOLDER";
 
@@ -15,8 +15,12 @@ function sendToGoogleSheet(
   data: { name: string; phone: string; address: string; pincode: string; quantity: number; product: string },
   source: "COD" | "Online Attempt"
 ) {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const dateStr = `${pad(now.getDate())}-${pad(now.getMonth() + 1)}-${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
   const params = new URLSearchParams({
-    date: new Date().toLocaleString("en-GB"),
+    date: dateStr,
     name: data.name,
     mobile: data.phone,
     address: data.address,
