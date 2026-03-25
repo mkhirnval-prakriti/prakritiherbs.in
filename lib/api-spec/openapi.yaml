@@ -81,7 +81,7 @@ components:
         quantity:
           type: integer
           minimum: 1
-          maximum: 10
+          maximum: 5
         product:
           type: string
       required:

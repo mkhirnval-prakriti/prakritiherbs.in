@@ -29,7 +29,7 @@ export interface CreateOrderRequest {
   pincode: string;
   /**
    * @minimum 1
-   * @maximum 10
+   * @maximum 5
    */
   quantity: number;
   product: string;

@@ -31,7 +31,7 @@ export const createOrderBodyAddressMax = 500;
 export const createOrderBodyPincodeMin = 6;
 export const createOrderBodyPincodeMax = 10;
 
-export const createOrderBodyQuantityMax = 10;
+export const createOrderBodyQuantityMax = 5;
 
 export const CreateOrderBody = zod.object({
   name: zod.string().min(createOrderBodyNameMin).max(createOrderBodyNameMax),
