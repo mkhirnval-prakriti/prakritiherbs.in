@@ -135,8 +135,10 @@ export function OrderForm() {
       window.open(`https://wa.me/918968122246?text=${msg}`, "_blank");
       setShowSuccess(true);
     } catch (err) {
-      console.error("CRM submission failed:", err);
-      alert("Submission Failed. Please try again or call us at +91 89681 22246.");
+      const apiMsg = err instanceof Error ? err.message : "Unknown error";
+      console.error("CRM submission failed (all retries exhausted):", apiMsg, err);
+      sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "COD-Fallback");
+      alert(`Order failed: ${apiMsg}\n\nYour details have been saved. Please call us at +91 89681 22246 to confirm your order.`);
     } finally {
       setLoading(false);
     }
@@ -163,8 +165,10 @@ export function OrderForm() {
       sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "Online Attempt");
       window.open(CASHFREE_URL, "_parent");
     } catch (err) {
-      console.error("CRM submission failed:", err);
-      alert("Submission Failed. Please try again or call us at +91 89681 22246.");
+      const apiMsg = err instanceof Error ? err.message : "Unknown error";
+      console.error("CRM submission failed (all retries exhausted):", apiMsg, err);
+      sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "Online-Fallback");
+      alert(`Payment initiation failed: ${apiMsg}\n\nYour details have been saved. Please call us at +91 89681 22246 to complete your order.`);
     } finally {
       setLoading(false);
     }

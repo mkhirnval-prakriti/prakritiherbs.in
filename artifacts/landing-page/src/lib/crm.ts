@@ -1,5 +1,9 @@
 export const CRM_POST_URL = "https://your-real-api.com/endpoint";
 
+const MAX_RETRIES     = 2;
+const RETRY_DELAY_MS  = 800;
+const LS_BACKUP_KEY   = "crm_failed_leads";
+
 export function cleanMobile(raw: string): string | null {
   let num = raw.replace(/\D/g, "");
   if (num.startsWith("91") && num.length === 12) num = num.slice(2);
@@ -13,7 +17,7 @@ export function cleanPincode(raw: string): string {
 }
 
 export function getISTTimestamp(): string {
-  const now = new Date();
+  const now   = new Date();
   const istMs = now.getTime() + 5.5 * 60 * 60 * 1000;
   const ist   = new Date(istMs);
   const pad   = (n: number) => String(n).padStart(2, "0");
@@ -23,12 +27,48 @@ export function getISTTimestamp(): string {
   );
 }
 
-export async function sendLeadToCRM(fields: {
-  name: string;
+function saveLeadToLocalStorage(payload: object): void {
+  try {
+    const existing = JSON.parse(localStorage.getItem(LS_BACKUP_KEY) ?? "[]");
+    existing.push({ ...payload, savedAt: new Date().toISOString() });
+    localStorage.setItem(LS_BACKUP_KEY, JSON.stringify(existing));
+    console.warn("CRM failed — lead saved to localStorage backup:", payload);
+  } catch (lsErr) {
+    console.error("localStorage backup also failed:", lsErr);
+  }
+}
+
+async function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function attemptCRM(payload: object): Promise<void> {
+  const res = await fetch(CRM_POST_URL, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    let message = `API error ${res.status}: ${res.statusText}`;
+    try {
+      const json = await res.json();
+      if (json?.message) message = json.message;
+      else if (json?.error)   message = json.error;
+    } catch {
+    }
+    throw new Error(message);
+  }
+}
+
+export interface CRMFields {
+  name:    string;
   address: string;
   pincode: string;
-  mobile: string;
-}): Promise<void> {
+  mobile:  string;
+}
+
+export async function sendLeadToCRM(fields: CRMFields): Promise<void> {
   const payload = {
     name:          fields.name,
     address:       fields.address,
@@ -40,13 +80,24 @@ export async function sendLeadToCRM(fields: {
     date:          getISTTimestamp(),
   };
 
-  const res = await fetch(CRM_POST_URL, {
-    method:  "POST",
-    headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify(payload),
-  });
+  let lastError: Error = new Error("Unknown CRM error");
 
-  if (!res.ok) {
-    throw new Error(`CRM API error: ${res.status} ${res.statusText}`);
+  for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
+    try {
+      await attemptCRM(payload);
+      console.log(`CRM success on attempt ${attempt}`);
+      return;
+    } catch (err) {
+      lastError = err as Error;
+      console.error(`CRM attempt ${attempt}/${MAX_RETRIES + 1} failed:`, lastError.message);
+
+      if (attempt <= MAX_RETRIES) {
+        console.log(`Retrying in ${RETRY_DELAY_MS * attempt}ms…`);
+        await sleep(RETRY_DELAY_MS * attempt);
+      }
+    }
   }
+
+  saveLeadToLocalStorage(payload);
+  throw lastError;
 }
