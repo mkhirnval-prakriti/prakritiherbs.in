@@ -1,4 +1,4 @@
-export const CRM_POST_URL = "https://your-real-api.com/endpoint";
+export const CRM_POST_URL = "https://webhook.site/b5b0e2d9-6248-4af8-a4b5-810f25691f6e";
 
 const MAX_RETRIES     = 2;
 const RETRY_DELAY_MS  = 800;
