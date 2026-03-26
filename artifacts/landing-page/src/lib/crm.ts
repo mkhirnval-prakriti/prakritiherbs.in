@@ -49,27 +49,38 @@ async function attemptCRM(payload: object): Promise<void> {
   console.log("[CRM] Sending POST →", CRM_POST_URL);
   console.log("[CRM] Payload:", JSON.parse(body));
 
-  /*
-   * Use Content-Type: text/plain so the browser treats this as a
-   * "simple request" — no CORS preflight OPTIONS is sent.
-   * The body is valid JSON and webhook.site / most CRMs will parse it fine.
-   * This is the only browser-compatible way to POST JSON to a third-party
-   * URL without the server returning Access-Control-Allow-Headers.
-   */
   const res = await fetch(CRM_POST_URL, {
     method:  "POST",
-    mode:    "no-cors",          // suppresses preflight, response is opaque
-    headers: { "Content-Type": "text/plain;charset=UTF-8" },
+    headers: { "Content-Type": "application/json" },
     body,
   });
 
-  /*
-   * In no-cors mode, res.type === "opaque": status is always 0 and ok is
-   * always false even on a successful 200 — we cannot read the response.
-   * If fetch() did not throw a network error, the POST was dispatched.
-   */
-  console.log("[CRM] Request dispatched (no-cors opaque response — check webhook dashboard for confirmation)");
-  void res; // intentional: opaque response, nothing to read
+  let responseData: unknown;
+  try {
+    responseData = await res.clone().json();
+  } catch {
+    responseData = await res.text().catch(() => "(unreadable)");
+  }
+
+  console.log("[CRM] Response status:", res.status);
+  console.log("[CRM] Response body:", responseData);
+
+  if (!res.ok) {
+    const apiMsg =
+      responseData !== null &&
+      typeof responseData === "object" &&
+      "message" in (responseData as object) &&
+      typeof (responseData as { message: unknown }).message === "string"
+        ? (responseData as { message: string }).message
+        : typeof responseData === "object" &&
+          responseData !== null &&
+          "error" in (responseData as object) &&
+          typeof (responseData as { error: unknown }).error === "string"
+          ? (responseData as { error: string }).error
+          : `API error ${res.status}: ${res.statusText}`;
+    console.error("[CRM] Non-2xx response:", apiMsg);
+    throw new Error(apiMsg);
+  }
 }
 
 export interface CRMFields {
