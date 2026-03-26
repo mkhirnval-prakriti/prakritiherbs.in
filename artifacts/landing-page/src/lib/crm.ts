@@ -79,7 +79,7 @@ export interface CRMFields {
   name:    string;
   address: string;
   pincode: string;
-  mobile:  string;
+  Number:  string;
 }
 
 export async function sendLeadToCRM(fields: CRMFields): Promise<void> {
@@ -87,7 +87,7 @@ export async function sendLeadToCRM(fields: CRMFields): Promise<void> {
     name:          fields.name,
     address:       fields.address,
     pincode:       cleanPincode(fields.pincode),
-    mobile:        fields.mobile,
+    Number:        fields.Number,
     reason:        "New",
     status:        "New",
     websiteSource: "ind Store",

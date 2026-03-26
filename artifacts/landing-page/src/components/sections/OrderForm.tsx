@@ -125,7 +125,7 @@ export function OrderForm() {
         name:    name.trim(),
         address: address.trim(),
         pincode: pincode.trim(),
-        mobile,
+        Number:  mobile,
       });
 
       sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "COD");
@@ -160,7 +160,7 @@ export function OrderForm() {
         name:    name.trim(),
         address: address.trim(),
         pincode: pincode.trim(),
-        mobile,
+        Number:  mobile,
       });
       sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "Online Attempt");
       window.open(CASHFREE_URL, "_parent");
