@@ -1,5 +1,4 @@
-export const CRM_POST_URL =
-  "https://crm.prakritiherbs.com/";
+export const CRM_POST_URL = "https://api.prakritiherbs.com/api/Indstore";
 
 const MAX_RETRIES    = 2;
 const RETRY_DELAY_MS = 800;
@@ -17,6 +16,16 @@ export function cleanPincode(raw: string): string {
   return digits.length === 6 ? digits : "111111";
 }
 
+export function getISTTimestamp(): string {
+  const now   = new Date();
+  const istMs = now.getTime() + 5.5 * 60 * 60 * 1000;
+  const ist   = new Date(istMs);
+  const pad   = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${ist.getUTCFullYear()}-${pad(ist.getUTCMonth() + 1)}-${pad(ist.getUTCDate())} ` +
+    `${pad(ist.getUTCHours())}:${pad(ist.getUTCMinutes())}:${pad(ist.getUTCSeconds())} +0530`
+  );
+}
 
 function saveLeadToLocalStorage(payload: object): void {
   try {
@@ -34,21 +43,33 @@ async function sleep(ms: number): Promise<void> {
 }
 
 async function attemptCRM(payload: object): Promise<void> {
-  const body = JSON.stringify(payload);
-
   console.log("[CRM] Sending POST →", CRM_POST_URL);
-  console.log("[CRM] Payload:", JSON.parse(body));
+  console.log("[CRM] Payload:", JSON.stringify(payload, null, 2));
 
+  let response: Response;
   try {
-    await fetch(CRM_POST_URL, {
+    response = await fetch(CRM_POST_URL, {
       method:  "POST",
-      mode:    "no-cors",
-      headers: { "Content-Type": "text/plain" },
-      body,
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify(payload),
     });
   } catch (networkErr) {
     console.error("[CRM] Network error (fetch failed):", networkErr);
     throw networkErr;
+  }
+
+  let responseBody: unknown;
+  try {
+    responseBody = await response.json();
+  } catch {
+    responseBody = await response.text().catch(() => "(no body)");
+  }
+
+  console.log("[CRM] API response status:", response.status, response.statusText);
+  console.log("[CRM] API response body:", responseBody);
+
+  if (!response.ok) {
+    throw new Error(`CRM API error ${response.status}: ${JSON.stringify(responseBody)}`);
   }
 
   console.log("[CRM] Request sent successfully");
@@ -58,7 +79,7 @@ export interface CRMFields {
   name:    string;
   address: string;
   pincode: string;
-  number:  string;
+  mobile:  string;
 }
 
 export async function sendLeadToCRM(fields: CRMFields): Promise<void> {
@@ -66,10 +87,11 @@ export async function sendLeadToCRM(fields: CRMFields): Promise<void> {
     name:          fields.name,
     address:       fields.address,
     pincode:       cleanPincode(fields.pincode),
-    number:        fields.number,
+    mobile:        fields.mobile,
     reason:        "New",
     status:        "New",
     websiteSource: "ind Store",
+    date:          getISTTimestamp(),
   };
 
   console.log("[CRM] Payload to be sent:", JSON.stringify(payload, null, 2));

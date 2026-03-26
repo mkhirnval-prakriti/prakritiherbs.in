@@ -26,7 +26,7 @@ async function handleWhatsAppClick(e: React.MouseEvent<HTMLButtonElement>) {
       name:    "WhatsApp Lead",
       address: "Via WhatsApp",
       pincode: "000000",
-      number:  mobile,
+      mobile,
     });
   } catch (err) {
     console.error("WhatsApp CRM lead error:", err);
