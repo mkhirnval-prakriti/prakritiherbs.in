@@ -1,0 +1,166 @@
+Update my existing React + Vite landing page for “KamaSutra Gold+” by Prakriti Herbs.
+
+IMPORTANT RULES:
+
+* DO NOT change UI, design, layout, colors, or structure
+* ONLY update logic and fix content
+* Ensure CRM payload remains EXACT as required
+
+---
+
+🎯 MAIN GOAL:
+
+1. Send ALL leads to CRM:
+
+   * COD Form
+   * WhatsApp Click
+   * Payment Leads (future ready)
+
+2. Prevent duplicate entries using mobile number
+
+3. Fix "How to Use" section in correct Hindi
+
+---
+
+🔗 CRM API (POST):
+
+https://YOUR-CRM-API-ENDPOINT
+
+Headers:
+Content-Type: application/json
+
+---
+
+📦 EXACT PAYLOAD (DO NOT CHANGE):
+
+{
+"name": name,
+"address": address,
+"pincode": pincode,
+"number": cleanedMobile,
+"reason": "New",
+"status": "New",
+"websiteSource": "ind Store"
+}
+
+---
+
+📱 MOBILE CLEANING:
+
+* Remove +91 or leading 0
+* Must be exactly 10 digits
+* If invalid → stop process
+
+---
+
+🛡 STRICT VALIDATION:
+
+* Name required
+* Phone required
+* Address required
+* Pincode required
+* If any field empty → do NOT send API
+
+---
+
+🔁 DUPLICATE CONTROL (IMPORTANT):
+
+Before sending POST request:
+
+1. Call CRM GET API:
+   https://YOUR-CRM-GET-ENDPOINT
+
+2. Check if mobile number already exists
+
+3. If exists:
+   → Do NOT create new entry
+   → Show message: "You have already submitted this number"
+
+4. If not exists:
+   → Proceed with POST API
+
+---
+
+⚙️ COD FORM FLOW:
+
+* User submits form
+* Validate inputs
+* Check duplicate
+* If new → send to CRM
+* Show success message
+* Reset form
+
+---
+
+💬 WHATSAPP LEAD FLOW:
+
+* On WhatsApp button click:
+
+1. Use available form data (or ask minimal details)
+2. Check duplicate via GET API
+3. If not duplicate → send POST API
+4. Then open WhatsApp
+
+Number:
+8968122246
+
+---
+
+💳 PAYMENT LEAD FLOW (READY):
+
+* Before redirecting to payment:
+  → Run duplicate check
+  → Send same payload to CRM
+
+---
+
+📞 CALL BUTTON:
+
+Use:
+tel:8968122246
+
+---
+
+🧾 FIX "HOW TO USE" SECTION (IMPORTANT):
+
+Replace existing content with:
+
+"रोजाना रात को खाना खाने के आधे घंटे बाद 1 कैप्सूल लें।
+सोने से पहले तेल से हल्की मालिश करें।"
+
+---
+
+🚨 ERROR HANDLING:
+
+* If API fails → show alert
+* Log error in console
+
+---
+
+⚡ CODE STRUCTURE:
+
+* Create reusable function: sendLeadToCRM()
+* Create duplicate check function
+* Keep code clean and modular
+
+---
+
+🔄 FUTURE SAFE:
+
+* No dependency on domain
+* Works on Replit or any hosting
+* Clean API-based integration
+
+---
+
+FINAL OUTPUT:
+
+Return updated App.jsx with:
+
+* CRM integration
+* Duplicate control
+* WhatsApp sync
+* Payment sync ready
+* Correct Hindi usage
+* No UI changes
+* Production-ready clean code

@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { CheckCircle, Clock, Droplets, Sun } from "lucide-react";
+import { CheckCircle, Clock, Droplets } from "lucide-react";
 
 const benefits = [
   "वैवाहिक जीवन में नई ऊर्जा और जोश लाएं",
@@ -12,19 +12,14 @@ const benefits = [
 
 const steps = [
   {
-    icon: Sun,
-    title: "सुबह खाली पेट",
-    desc: "1 कैप्सूल सुबह खाली पेट गुनगुने दूध या पानी के साथ लें।",
-  },
-  {
     icon: Clock,
-    title: "रात को सोने से पहले",
-    desc: "1 कैप्सूल रात को खाने के 1 घंटे बाद गुनगुने दूध के साथ लें।",
+    title: "कैप्सूल लेने का सही समय",
+    desc: "रोजाना रात को खाना खाने के आधे घंटे बाद 1 कैप्सूल लें।",
   },
   {
     icon: Droplets,
-    title: "तेल का उपयोग (यदि कॉम्बो है)",
-    desc: "Sensual Oil की 3-4 बूँदें हल्के हाथों से 5 मिनट मालिश करें। 30 मिनट बाद गुनगुने पानी से धोएं।",
+    title: "तेल से मालिश",
+    desc: "सोने से पहले तेल से हल्की मालिश करें।",
   },
 ];
 

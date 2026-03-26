@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, ShieldCheck, Truck, Package, X, Loader2 } from "lucide-react";
+import { cleanMobile, checkDuplicate, sendLeadToCRM } from "@/lib/crm";
 
 const GOOGLE_SHEET_URL =
   "https://script.google.com/macros/s/AKfycbyh89OCWVJJePou7B73Q0H2mJBzlWewT4YORz0QF0U2AVb1QvkKLp-h0_MjveBxc_2Txw/exec";
@@ -108,29 +109,63 @@ export function OrderForm() {
     return Object.keys(e).length === 0;
   }
 
-  function handleCODSubmit(e: React.FormEvent) {
+  async function handleCODSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validate()) return;
+
+    const mobile = cleanMobile(phone);
+    if (!mobile) {
+      alert("Please enter a valid 10-digit mobile number.");
+      return;
+    }
 
     setLoading(true);
-    sendToSheet(name.trim(), phone.trim(), address.trim(), pincode.trim(), "COD");
+    try {
+      const isDuplicate = await checkDuplicate(mobile);
+      if (isDuplicate) {
+        alert("You have already submitted this number.");
+        setLoading(false);
+        return;
+      }
 
-    const msg = encodeURIComponent(
-      `*New COD Order:*\n*Product:* KamaSutra Gold+\n*Name:* ${name}\n*Mobile:* ${phone}\n*Address:* ${address}\n*Pincode:* ${pincode}\n*Qty:* ${quantity} bottle(s)`
-    );
-    window.open(`https://wa.me/918968122246?text=${msg}`, "_blank");
+      await sendLeadToCRM({ name: name.trim(), address: address.trim(), pincode: pincode.trim(), number: mobile });
+      sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "COD");
 
-    setTimeout(() => {
-      setLoading(false);
+      const msg = encodeURIComponent(
+        `*New COD Order:*\n*Product:* KamaSutra Gold+\n*Name:* ${name}\n*Mobile:* ${mobile}\n*Address:* ${address}\n*Pincode:* ${pincode}\n*Qty:* ${quantity} bottle(s)`
+      );
+      window.open(`https://wa.me/918968122246?text=${msg}`, "_blank");
       setShowSuccess(true);
-    }, 600);
+    } catch (err) {
+      console.error("COD submission error:", err);
+      alert("Something went wrong. Please call us at +91 89681 22246.");
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function handlePayNowClick(e: React.MouseEvent<HTMLButtonElement>) {
+  async function handlePayNowClick(e: React.MouseEvent<HTMLButtonElement>) {
     e.preventDefault();
     if (!validate()) return;
 
-    sendToSheet(name.trim(), phone.trim(), address.trim(), pincode.trim(), "Online Attempt");
+    const mobile = cleanMobile(phone);
+    if (!mobile) {
+      alert("Please enter a valid 10-digit mobile number.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const isDuplicate = await checkDuplicate(mobile);
+      if (!isDuplicate) {
+        await sendLeadToCRM({ name: name.trim(), address: address.trim(), pincode: pincode.trim(), number: mobile });
+      }
+      sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "Online Attempt");
+    } catch (err) {
+      console.error("Payment lead error:", err);
+    } finally {
+      setLoading(false);
+    }
     window.open(CASHFREE_URL, "_parent");
   }
 
