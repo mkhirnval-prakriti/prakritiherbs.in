@@ -28,7 +28,7 @@ async function handleWhatsAppClick(e: React.MouseEvent<HTMLButtonElement>) {
         name:    "WhatsApp Lead",
         address: "Via WhatsApp",
         pincode: "000000",
-        number:  mobile,
+        mobile:  mobile,
       });
     }
   } catch (err) {
