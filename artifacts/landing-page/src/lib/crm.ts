@@ -1,4 +1,4 @@
-export const CRM_POST_URL = "https://YOUR-CRM-API-LINK-HERE";
+export const CRM_POST_URL = "https://your-real-api.com/endpoint";
 
 export function cleanMobile(raw: string): string | null {
   let num = raw.replace(/\D/g, "");
