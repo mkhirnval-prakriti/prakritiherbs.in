@@ -68,7 +68,7 @@ export interface CRMFields {
   name:    string;
   address: string;
   pincode: string;
-  mobile:  string;
+  number:  string;
 }
 
 export async function sendLeadToCRM(fields: CRMFields): Promise<void> {
@@ -76,14 +76,13 @@ export async function sendLeadToCRM(fields: CRMFields): Promise<void> {
     name:          fields.name,
     address:       fields.address,
     pincode:       cleanPincode(fields.pincode),
-    mobile:        fields.mobile,
+    number:        fields.number,
     reason:        "New",
     status:        "New",
     websiteSource: "ind Store",
-    date:          getISTTimestamp(),
   };
 
-  console.log("[CRM] Submitting form — building payload…");
+  console.log("[CRM] Payload to be sent:", JSON.stringify(payload, null, 2));
 
   let lastError: Error = new Error("Unknown CRM error");
 
