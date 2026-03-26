@@ -133,6 +133,8 @@ export function OrderForm() {
         `*New COD Order:*\n*Product:* KamaSutra Gold+\n*Name:* ${name}\n*Mobile:* ${mobile}\n*Address:* ${address}\n*Pincode:* ${pincode}\n*Qty:* ${quantity} bottle(s)`
       );
       window.open(`https://wa.me/918968122246?text=${msg}`, "_blank");
+      // Fire Meta Pixel Lead event on successful COD order
+      try { (window as any).fbq?.("track", "Lead"); } catch (_) {}
       setShowSuccess(true);
     } catch (err) {
       if (err instanceof DuplicateOrderError) {
@@ -180,6 +182,9 @@ export function OrderForm() {
     });
 
     sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "Online Attempt");
+
+    // Fire Meta Pixel Lead event on Pay Now intent
+    try { (window as any).fbq?.("track", "Lead"); } catch (_) {}
 
     // Open payment gateway synchronously within the click handler (avoids popup blockers)
     console.log("[PayNow] Opening Cashfree URL →", CASHFREE_URL);
