@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, ShieldCheck, Truck, Package, X, Loader2 } from "lucide-react";
-import { cleanMobile, checkDuplicate, sendLeadToCRM } from "@/lib/crm";
+import { cleanMobile, sendLeadToCRM } from "@/lib/crm";
 
 const GOOGLE_SHEET_URL =
   "https://script.google.com/macros/s/AKfycbyh89OCWVJJePou7B73Q0H2mJBzlWewT4YORz0QF0U2AVb1QvkKLp-h0_MjveBxc_2Txw/exec";
@@ -120,33 +120,29 @@ export function OrderForm() {
     }
 
     setLoading(true);
+    try {
+      await sendLeadToCRM({
+        name:    name.trim(),
+        address: address.trim(),
+        pincode: pincode.trim(),
+        mobile,
+      });
 
-    // Fire CRM silently — never blocks order success
-    checkDuplicate(mobile)
-      .then((isDuplicate) => {
-        if (!isDuplicate) {
-          sendLeadToCRM({
-            name:    name.trim(),
-            address: address.trim(),
-            pincode: pincode.trim(),
-            number:  mobile,
-          }).catch((err) => console.error("CRM silent error:", err));
-        }
-      })
-      .catch((err) => console.error("Duplicate check silent error:", err));
-
-    // Always send to Google Sheets and show success
-    sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "COD");
-
-    const msg = encodeURIComponent(
-      `*New COD Order:*\n*Product:* KamaSutra Gold+\n*Name:* ${name}\n*Mobile:* ${mobile}\n*Address:* ${address}\n*Pincode:* ${pincode}\n*Qty:* ${quantity} bottle(s)`
-    );
-    window.open(`https://wa.me/918968122246?text=${msg}`, "_blank");
-    setShowSuccess(true);
-    setLoading(false);
+      sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "COD");
+      const msg = encodeURIComponent(
+        `*New COD Order:*\n*Product:* KamaSutra Gold+\n*Name:* ${name}\n*Mobile:* ${mobile}\n*Address:* ${address}\n*Pincode:* ${pincode}\n*Qty:* ${quantity} bottle(s)`
+      );
+      window.open(`https://wa.me/918968122246?text=${msg}`, "_blank");
+      setShowSuccess(true);
+    } catch (err) {
+      console.error("CRM submission failed:", err);
+      alert("Submission Failed. Please try again or call us at +91 89681 22246.");
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function handlePayNowClick(e: React.MouseEvent<HTMLButtonElement>) {
+  async function handlePayNowClick(e: React.MouseEvent<HTMLButtonElement>) {
     e.preventDefault();
     if (!validate()) return;
 
@@ -156,22 +152,22 @@ export function OrderForm() {
       return;
     }
 
-    // Fire CRM silently — never blocks payment redirect
-    checkDuplicate(mobile)
-      .then((isDuplicate) => {
-        if (!isDuplicate) {
-          sendLeadToCRM({
-            name:    name.trim(),
-            address: address.trim(),
-            pincode: pincode.trim(),
-            number:  mobile,
-          }).catch((err) => console.error("CRM silent error:", err));
-        }
-      })
-      .catch((err) => console.error("Duplicate check silent error:", err));
-
-    sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "Online Attempt");
-    window.open(CASHFREE_URL, "_parent");
+    setLoading(true);
+    try {
+      await sendLeadToCRM({
+        name:    name.trim(),
+        address: address.trim(),
+        pincode: pincode.trim(),
+        mobile,
+      });
+      sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "Online Attempt");
+      window.open(CASHFREE_URL, "_parent");
+    } catch (err) {
+      console.error("CRM submission failed:", err);
+      alert("Submission Failed. Please try again or call us at +91 89681 22246.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   function handleClose() {

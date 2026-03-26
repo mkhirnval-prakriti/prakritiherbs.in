@@ -1,6 +1,6 @@
 import { Phone, MessageCircle } from "lucide-react";
 import { motion } from "framer-motion";
-import { cleanMobile, checkDuplicate, sendLeadToCRM } from "@/lib/crm";
+import { cleanMobile, sendLeadToCRM } from "@/lib/crm";
 
 const WA_NUMBER = "918968122246";
 const DEFAULT_WA_MSG = encodeURIComponent("I want to order KamaSutra Gold+");
@@ -22,15 +22,12 @@ async function handleWhatsAppClick(e: React.MouseEvent<HTMLButtonElement>) {
   }
 
   try {
-    const isDuplicate = await checkDuplicate(mobile);
-    if (!isDuplicate) {
-      await sendLeadToCRM({
-        name:    "WhatsApp Lead",
-        address: "Via WhatsApp",
-        pincode: "000000",
-        number:  mobile,
-      });
-    }
+    await sendLeadToCRM({
+      name:    "WhatsApp Lead",
+      address: "Via WhatsApp",
+      pincode: "000000",
+      mobile,
+    });
   } catch (err) {
     console.error("WhatsApp CRM lead error:", err);
   }
