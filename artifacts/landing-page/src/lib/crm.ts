@@ -49,11 +49,17 @@ async function attemptCRM(payload: object): Promise<void> {
   console.log("[CRM] Sending POST →", CRM_POST_URL);
   console.log("[CRM] Payload:", JSON.parse(body));
 
-  const res = await fetch(CRM_POST_URL, {
-    method:  "POST",
-    headers: { "Content-Type": "application/json" },
-    body,
-  });
+  let res: Response;
+  try {
+    res = await fetch(CRM_POST_URL, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    });
+  } catch (networkErr) {
+    console.error("[CRM] Network/CORS error (fetch failed before receiving a response):", networkErr);
+    throw networkErr;
+  }
 
   let responseData: unknown;
   try {
