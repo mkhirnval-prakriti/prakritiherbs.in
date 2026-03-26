@@ -1,6 +1,6 @@
 import { Phone, MessageCircle } from "lucide-react";
 import { motion } from "framer-motion";
-import { cleanMobile, sendLeadToCRM } from "@/lib/crm";
+import { cleanMobile, sendLeadToCRM, hasOrderedToday } from "@/lib/crm";
 
 const WA_NUMBER = "918968122246";
 const DEFAULT_WA_MSG = encodeURIComponent("I want to order KamaSutra Gold+");
@@ -17,6 +17,12 @@ async function handleWhatsAppClick(e: React.MouseEvent<HTMLButtonElement>) {
   const mobile = cleanMobile(rawInput);
   if (!mobile) {
     alert("Please enter a valid 10-digit mobile number.");
+    window.open(`https://wa.me/${WA_NUMBER}?text=${DEFAULT_WA_MSG}`, "_blank");
+    return;
+  }
+
+  if (hasOrderedToday(mobile)) {
+    alert("आप आज इस नंबर से ऑर्डर कर चुके हैं। कृपया कल प्रयास करें।");
     window.open(`https://wa.me/${WA_NUMBER}?text=${DEFAULT_WA_MSG}`, "_blank");
     return;
   }

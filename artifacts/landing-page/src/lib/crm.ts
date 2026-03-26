@@ -4,6 +4,39 @@ const MAX_RETRIES    = 2;
 const RETRY_DELAY_MS = 800;
 const LS_BACKUP_KEY  = "crm_failed_leads";
 
+export class DuplicateOrderError extends Error {
+  constructor() {
+    super("DUPLICATE_ORDER");
+    this.name = "DuplicateOrderError";
+  }
+}
+
+function getTodayIST(): string {
+  const istMs = Date.now() + 5.5 * 60 * 60 * 1000;
+  const d     = new Date(istMs);
+  const pad   = (n: number) => String(n).padStart(2, "0");
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+}
+
+export function hasOrderedToday(mobile: string): boolean {
+  try {
+    const key = `crm_ordered_${mobile}_${getTodayIST()}`;
+    return localStorage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function markOrderedToday(mobile: string): void {
+  try {
+    const key = `crm_ordered_${mobile}_${getTodayIST()}`;
+    localStorage.setItem(key, "1");
+    console.log("[CRM] Order marked for today:", key);
+  } catch (e) {
+    console.error("[CRM] Could not mark order in localStorage:", e);
+  }
+}
+
 export function cleanMobile(raw: string): string | null {
   let num = raw.replace(/\D/g, "");
   if (num.startsWith("91") && num.length === 12) num = num.slice(2);
@@ -83,6 +116,11 @@ export interface CRMFields {
 }
 
 export async function sendLeadToCRM(fields: CRMFields): Promise<void> {
+  if (hasOrderedToday(fields.Number)) {
+    console.warn("[CRM] Duplicate order blocked for mobile:", fields.Number, "on", getTodayIST());
+    throw new DuplicateOrderError();
+  }
+
   const payload = {
     name:          fields.name,
     address:       fields.address,
@@ -102,6 +140,7 @@ export async function sendLeadToCRM(fields: CRMFields): Promise<void> {
     try {
       await attemptCRM(payload);
       console.log(`[CRM] Success on attempt ${attempt}`);
+      markOrderedToday(fields.Number);
       return;
     } catch (err) {
       lastError = err as Error;

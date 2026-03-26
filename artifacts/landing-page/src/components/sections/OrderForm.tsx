@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, ShieldCheck, Truck, Package, X, Loader2 } from "lucide-react";
-import { cleanMobile, sendLeadToCRM } from "@/lib/crm";
+import { cleanMobile, sendLeadToCRM, DuplicateOrderError, hasOrderedToday } from "@/lib/crm";
 
 const GOOGLE_SHEET_URL =
   "https://script.google.com/macros/s/AKfycbyh89OCWVJJePou7B73Q0H2mJBzlWewT4YORz0QF0U2AVb1QvkKLp-h0_MjveBxc_2Txw/exec";
@@ -135,6 +135,10 @@ export function OrderForm() {
       window.open(`https://wa.me/918968122246?text=${msg}`, "_blank");
       setShowSuccess(true);
     } catch (err) {
+      if (err instanceof DuplicateOrderError) {
+        alert("आप आज इस नंबर से ऑर्डर कर चुके हैं। कृपया कल प्रयास करें।");
+        return;
+      }
       const apiMsg = err instanceof Error ? err.message : "Unknown error";
       console.error("CRM submission failed (all retries exhausted):", apiMsg, err);
       sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "COD-Fallback");
@@ -154,6 +158,11 @@ export function OrderForm() {
       return;
     }
 
+    if (hasOrderedToday(mobile)) {
+      alert("आप आज इस नंबर से ऑर्डर कर चुके हैं। कृपया कल प्रयास करें।");
+      return;
+    }
+
     console.log("[PayNow] Validation passed. Initiating payment redirect…");
     console.log("[PayNow] Customer:", { name: name.trim(), mobile, pincode: pincode.trim() });
 
@@ -166,6 +175,7 @@ export function OrderForm() {
     }).then(() => {
       console.log("[PayNow] CRM lead saved successfully.");
     }).catch((err) => {
+      if (err instanceof DuplicateOrderError) return;
       console.error("[PayNow] CRM failed (non-blocking):", err instanceof Error ? err.message : err);
     });
 
