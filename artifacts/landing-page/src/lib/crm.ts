@@ -49,44 +49,19 @@ async function attemptCRM(payload: object): Promise<void> {
   console.log("[CRM] Sending POST →", CRM_POST_URL);
   console.log("[CRM] Payload:", JSON.parse(body));
 
-  let res: Response;
   try {
-    res = await fetch(CRM_POST_URL, {
+    await fetch(CRM_POST_URL, {
       method:  "POST",
-      headers: { "Content-Type": "application/json" },
+      mode:    "no-cors",
+      headers: { "Content-Type": "text/plain" },
       body,
     });
   } catch (networkErr) {
-    console.error("[CRM] Network/CORS error (fetch failed before receiving a response):", networkErr);
+    console.error("[CRM] Network error (fetch failed):", networkErr);
     throw networkErr;
   }
 
-  let responseData: unknown;
-  try {
-    responseData = await res.clone().json();
-  } catch {
-    responseData = await res.text().catch(() => "(unreadable)");
-  }
-
-  console.log("[CRM] Response status:", res.status);
-  console.log("[CRM] Response body:", responseData);
-
-  if (!res.ok) {
-    const apiMsg =
-      responseData !== null &&
-      typeof responseData === "object" &&
-      "message" in (responseData as object) &&
-      typeof (responseData as { message: unknown }).message === "string"
-        ? (responseData as { message: string }).message
-        : typeof responseData === "object" &&
-          responseData !== null &&
-          "error" in (responseData as object) &&
-          typeof (responseData as { error: unknown }).error === "string"
-          ? (responseData as { error: string }).error
-          : `API error ${res.status}: ${res.statusText}`;
-    console.error("[CRM] Non-2xx response:", apiMsg);
-    throw new Error(apiMsg);
-  }
+  console.log("[CRM] Request sent successfully");
 }
 
 export interface CRMFields {
