@@ -1,8 +1,9 @@
-export const CRM_POST_URL = "https://webhook.site/b5b0e2d9-6248-4af8-a4b5-810f25691f6e";
+export const CRM_POST_URL =
+  "https://webhook.site/b5b0e2d9-6248-4af8-a4b5-810f25691f6e";
 
-const MAX_RETRIES     = 2;
-const RETRY_DELAY_MS  = 800;
-const LS_BACKUP_KEY   = "crm_failed_leads";
+const MAX_RETRIES    = 2;
+const RETRY_DELAY_MS = 800;
+const LS_BACKUP_KEY  = "crm_failed_leads";
 
 export function cleanMobile(raw: string): string | null {
   let num = raw.replace(/\D/g, "");
@@ -32,33 +33,43 @@ function saveLeadToLocalStorage(payload: object): void {
     const existing = JSON.parse(localStorage.getItem(LS_BACKUP_KEY) ?? "[]");
     existing.push({ ...payload, savedAt: new Date().toISOString() });
     localStorage.setItem(LS_BACKUP_KEY, JSON.stringify(existing));
-    console.warn("CRM failed — lead saved to localStorage backup:", payload);
+    console.warn("[CRM] Lead saved to localStorage backup:", payload);
   } catch (lsErr) {
-    console.error("localStorage backup also failed:", lsErr);
+    console.error("[CRM] localStorage backup failed:", lsErr);
   }
 }
 
-async function sleep(ms: number) {
+async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function attemptCRM(payload: object): Promise<void> {
+  const body = JSON.stringify(payload);
+
+  console.log("[CRM] Sending POST →", CRM_POST_URL);
+  console.log("[CRM] Payload:", JSON.parse(body));
+
+  /*
+   * Use Content-Type: text/plain so the browser treats this as a
+   * "simple request" — no CORS preflight OPTIONS is sent.
+   * The body is valid JSON and webhook.site / most CRMs will parse it fine.
+   * This is the only browser-compatible way to POST JSON to a third-party
+   * URL without the server returning Access-Control-Allow-Headers.
+   */
   const res = await fetch(CRM_POST_URL, {
     method:  "POST",
-    headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify(payload),
+    mode:    "no-cors",          // suppresses preflight, response is opaque
+    headers: { "Content-Type": "text/plain;charset=UTF-8" },
+    body,
   });
 
-  if (!res.ok) {
-    let message = `API error ${res.status}: ${res.statusText}`;
-    try {
-      const json = await res.json();
-      if (json?.message) message = json.message;
-      else if (json?.error)   message = json.error;
-    } catch {
-    }
-    throw new Error(message);
-  }
+  /*
+   * In no-cors mode, res.type === "opaque": status is always 0 and ok is
+   * always false even on a successful 200 — we cannot read the response.
+   * If fetch() did not throw a network error, the POST was dispatched.
+   */
+  console.log("[CRM] Request dispatched (no-cors opaque response — check webhook dashboard for confirmation)");
+  void res; // intentional: opaque response, nothing to read
 }
 
 export interface CRMFields {
@@ -80,24 +91,28 @@ export async function sendLeadToCRM(fields: CRMFields): Promise<void> {
     date:          getISTTimestamp(),
   };
 
+  console.log("[CRM] Submitting form — building payload…");
+
   let lastError: Error = new Error("Unknown CRM error");
 
   for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
     try {
       await attemptCRM(payload);
-      console.log(`CRM success on attempt ${attempt}`);
+      console.log(`[CRM] Success on attempt ${attempt}`);
       return;
     } catch (err) {
       lastError = err as Error;
-      console.error(`CRM attempt ${attempt}/${MAX_RETRIES + 1} failed:`, lastError.message);
+      console.error(`[CRM] Attempt ${attempt}/${MAX_RETRIES + 1} failed:`, lastError.message);
 
       if (attempt <= MAX_RETRIES) {
-        console.log(`Retrying in ${RETRY_DELAY_MS * attempt}ms…`);
-        await sleep(RETRY_DELAY_MS * attempt);
+        const delay = RETRY_DELAY_MS * attempt;
+        console.log(`[CRM] Retrying in ${delay}ms…`);
+        await sleep(delay);
       }
     }
   }
 
+  console.error("[CRM] All retries exhausted. Saving to backup.");
   saveLeadToLocalStorage(payload);
   throw lastError;
 }
