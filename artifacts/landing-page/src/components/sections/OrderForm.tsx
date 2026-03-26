@@ -144,7 +144,7 @@ export function OrderForm() {
     }
   }
 
-  async function handlePayNowClick(e: React.MouseEvent<HTMLButtonElement>) {
+  function handlePayNowClick(e: React.MouseEvent<HTMLButtonElement>) {
     e.preventDefault();
     if (!validate()) return;
 
@@ -154,23 +154,31 @@ export function OrderForm() {
       return;
     }
 
-    setLoading(true);
+    console.log("[PayNow] Validation passed. Initiating payment redirect…");
+    console.log("[PayNow] Customer:", { name: name.trim(), mobile, pincode: pincode.trim() });
+
+    // Fire CRM + Google Sheets in the background — never block the payment redirect
+    sendLeadToCRM({
+      name:    name.trim(),
+      address: address.trim(),
+      pincode: pincode.trim(),
+      Number:  mobile,
+    }).then(() => {
+      console.log("[PayNow] CRM lead saved successfully.");
+    }).catch((err) => {
+      console.error("[PayNow] CRM failed (non-blocking):", err instanceof Error ? err.message : err);
+    });
+
+    sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "Online Attempt");
+
+    // Open payment gateway synchronously within the click handler (avoids popup blockers)
+    console.log("[PayNow] Opening Cashfree URL →", CASHFREE_URL);
     try {
-      await sendLeadToCRM({
-        name:    name.trim(),
-        address: address.trim(),
-        pincode: pincode.trim(),
-        Number:  mobile,
-      });
-      sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "Online Attempt");
       window.open(CASHFREE_URL, "_parent");
-    } catch (err) {
-      const apiMsg = err instanceof Error ? err.message : "Unknown error";
-      console.error("CRM submission failed (all retries exhausted):", apiMsg, err);
-      sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "Online-Fallback");
-      alert(`Payment initiation failed: ${apiMsg}\n\nYour details have been saved. Please call us at +91 89681 22246 to complete your order.`);
-    } finally {
-      setLoading(false);
+      console.log("[PayNow] window.open called successfully.");
+    } catch (openErr) {
+      console.error("[PayNow] window.open failed:", openErr);
+      window.location.href = CASHFREE_URL;
     }
   }
 
