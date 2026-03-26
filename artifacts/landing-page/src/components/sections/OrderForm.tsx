@@ -120,31 +120,33 @@ export function OrderForm() {
     }
 
     setLoading(true);
-    try {
-      const isDuplicate = await checkDuplicate(mobile);
-      if (isDuplicate) {
-        alert("You have already submitted this number.");
-        setLoading(false);
-        return;
-      }
 
-      await sendLeadToCRM({ name: name.trim(), address: address.trim(), pincode: pincode.trim(), number: mobile });
-      sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "COD");
+    // Fire CRM silently — never blocks order success
+    checkDuplicate(mobile)
+      .then((isDuplicate) => {
+        if (!isDuplicate) {
+          sendLeadToCRM({
+            name:    name.trim(),
+            address: address.trim(),
+            pincode: pincode.trim(),
+            number:  mobile,
+          }).catch((err) => console.error("CRM silent error:", err));
+        }
+      })
+      .catch((err) => console.error("Duplicate check silent error:", err));
 
-      const msg = encodeURIComponent(
-        `*New COD Order:*\n*Product:* KamaSutra Gold+\n*Name:* ${name}\n*Mobile:* ${mobile}\n*Address:* ${address}\n*Pincode:* ${pincode}\n*Qty:* ${quantity} bottle(s)`
-      );
-      window.open(`https://wa.me/918968122246?text=${msg}`, "_blank");
-      setShowSuccess(true);
-    } catch (err) {
-      console.error("COD submission error:", err);
-      alert("Something went wrong. Please call us at +91 89681 22246.");
-    } finally {
-      setLoading(false);
-    }
+    // Always send to Google Sheets and show success
+    sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "COD");
+
+    const msg = encodeURIComponent(
+      `*New COD Order:*\n*Product:* KamaSutra Gold+\n*Name:* ${name}\n*Mobile:* ${mobile}\n*Address:* ${address}\n*Pincode:* ${pincode}\n*Qty:* ${quantity} bottle(s)`
+    );
+    window.open(`https://wa.me/918968122246?text=${msg}`, "_blank");
+    setShowSuccess(true);
+    setLoading(false);
   }
 
-  async function handlePayNowClick(e: React.MouseEvent<HTMLButtonElement>) {
+  function handlePayNowClick(e: React.MouseEvent<HTMLButtonElement>) {
     e.preventDefault();
     if (!validate()) return;
 
@@ -154,18 +156,21 @@ export function OrderForm() {
       return;
     }
 
-    setLoading(true);
-    try {
-      const isDuplicate = await checkDuplicate(mobile);
-      if (!isDuplicate) {
-        await sendLeadToCRM({ name: name.trim(), address: address.trim(), pincode: pincode.trim(), number: mobile });
-      }
-      sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "Online Attempt");
-    } catch (err) {
-      console.error("Payment lead error:", err);
-    } finally {
-      setLoading(false);
-    }
+    // Fire CRM silently — never blocks payment redirect
+    checkDuplicate(mobile)
+      .then((isDuplicate) => {
+        if (!isDuplicate) {
+          sendLeadToCRM({
+            name:    name.trim(),
+            address: address.trim(),
+            pincode: pincode.trim(),
+            number:  mobile,
+          }).catch((err) => console.error("CRM silent error:", err));
+        }
+      })
+      .catch((err) => console.error("Duplicate check silent error:", err));
+
+    sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "Online Attempt");
     window.open(CASHFREE_URL, "_parent");
   }
 
