@@ -128,7 +128,7 @@ export function OrderForm() {
         return;
       }
 
-      await sendLeadToCRM({ name: name.trim(), address: address.trim(), pincode: pincode.trim(), mobile });
+      await sendLeadToCRM({ name: name.trim(), address: address.trim(), pincode: pincode.trim(), number: mobile });
       sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "COD");
 
       const msg = encodeURIComponent(
@@ -158,7 +158,7 @@ export function OrderForm() {
     try {
       const isDuplicate = await checkDuplicate(mobile);
       if (!isDuplicate) {
-        await sendLeadToCRM({ name: name.trim(), address: address.trim(), pincode: pincode.trim(), mobile });
+        await sendLeadToCRM({ name: name.trim(), address: address.trim(), pincode: pincode.trim(), number: mobile });
       }
       sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "Online Attempt");
     } catch (err) {
