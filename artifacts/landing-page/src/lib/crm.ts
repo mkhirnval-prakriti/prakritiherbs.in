@@ -17,16 +17,6 @@ export function cleanPincode(raw: string): string {
   return digits.length === 6 ? digits : "111111";
 }
 
-export function getISTTimestamp(): string {
-  const now   = new Date();
-  const istMs = now.getTime() + 5.5 * 60 * 60 * 1000;
-  const ist   = new Date(istMs);
-  const pad   = (n: number) => String(n).padStart(2, "0");
-  return (
-    `${ist.getUTCFullYear()}-${pad(ist.getUTCMonth() + 1)}-${pad(ist.getUTCDate())} ` +
-    `${pad(ist.getUTCHours())}:${pad(ist.getUTCMinutes())}:${pad(ist.getUTCSeconds())} +0530`
-  );
-}
 
 function saveLeadToLocalStorage(payload: object): void {
   try {
