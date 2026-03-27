@@ -140,6 +140,16 @@ export function OrderForm() {
       console.error("[COD] CRM failed (non-blocking):", err instanceof Error ? err.message : err);
     });
 
+    // Save to local DB (background, non-blocking)
+    fetch("/api/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: name.trim(), phone: mobile, address: address.trim(),
+        pincode: pincode.trim(), quantity: parseInt(quantity, 10), product: "KamaSutra Gold+", source: "COD",
+      }),
+    }).catch(() => {});
+
     // Always confirm order via Google Sheets + WhatsApp
     sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "COD");
     const msg = encodeURIComponent(

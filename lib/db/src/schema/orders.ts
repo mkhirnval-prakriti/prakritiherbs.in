@@ -11,7 +11,8 @@ export const ordersTable = pgTable("orders", {
   pincode: text("pincode").notNull(),
   quantity: integer("quantity").notNull(),
   product: text("product").notNull(),
-  status: text("status").notNull().default("pending"),
+  source: text("source").notNull().default("COD"),
+  status: text("status").notNull().default("New"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

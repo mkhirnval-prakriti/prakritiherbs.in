@@ -14,6 +14,7 @@ router.post("/orders", async (req, res) => {
   }
 
   const { name, phone, address, pincode, quantity, product } = parseResult.data;
+  const source = (req.body as { source?: string }).source ?? "COD";
   const orderId = `ORD-${nanoid(8).toUpperCase()}`;
 
   try {
@@ -27,14 +28,15 @@ router.post("/orders", async (req, res) => {
         pincode,
         quantity,
         product,
-        status: "pending",
+        source,
+        status: "New",
       })
       .returning();
 
     res.status(201).json({
       id: order.id,
       orderId: order.orderId,
-      message: `Thank you ${name}! Your order has been placed successfully. We will call you to confirm. Order ID: ${orderId}`,
+      message: `Thank you ${name}! Your order has been placed successfully. Order ID: ${orderId}`,
     });
   } catch (err) {
     req.log.error({ err }, "Failed to create order");
