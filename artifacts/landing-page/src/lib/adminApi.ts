@@ -102,6 +102,7 @@ export interface AnalyticsData {
   ordersByDay: { date: string; count: number }[];
   ordersByHour: { hour: number; count: number }[];
   ordersBySource: { source: string; count: number }[];
+  topCities: { city: string; count: number }[];
   visitors: {
     today: number;
     yesterday: number;
@@ -113,6 +114,12 @@ export interface AnalyticsData {
     last30: { visitors: number; orders: number; rate: number };
     last7: { visitors: number; orders: number; rate: number };
     today: { visitors: number; orders: number; rate: number };
+  };
+  abandonedStats: {
+    total: number;
+    new: number;
+    called: number;
+    recovered: number;
   };
 }
 
@@ -166,6 +173,54 @@ export async function fetchDownloads(): Promise<AdminDownload[]> {
 export async function fetchAnalytics(): Promise<AnalyticsData> {
   const res = await authFetch("/admin/analytics");
   if (!res.ok) throw new Error("Failed to fetch analytics");
+  return res.json();
+}
+
+export interface AbandonedCart {
+  id: number;
+  name: string;
+  phone: string;
+  address: string | null;
+  pincode: string | null;
+  source: string | null;
+  recoveryStatus: string;
+  eventId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AbandonedCartsResponse {
+  carts: AbandonedCart[];
+  total: number;
+  page: number;
+}
+
+export async function fetchAbandonedCarts(params: {
+  search?: string; status?: string; page?: number; limit?: number;
+}): Promise<AbandonedCartsResponse> {
+  const qs = new URLSearchParams();
+  if (params.search) qs.set("search", params.search);
+  if (params.status && params.status !== "all") qs.set("status", params.status);
+  if (params.page) qs.set("page", String(params.page));
+  if (params.limit) qs.set("limit", String(params.limit));
+  const res = await authFetch(`/admin/abandoned-carts?${qs.toString()}`);
+  if (!res.ok) return { carts: [], total: 0, page: 1 };
+  return res.json();
+}
+
+export async function updateAbandonedCartStatus(id: number, status: string): Promise<void> {
+  await authFetch(`/admin/abandoned-carts/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function bulkUpdateOrderStatus(ids: number[], status: string): Promise<{ updated: number }> {
+  const res = await authFetch("/admin/orders/bulk-status", {
+    method: "POST",
+    body: JSON.stringify({ ids, status }),
+  });
+  if (!res.ok) throw new Error("Bulk update failed");
   return res.json();
 }
 

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db, ordersTable, pageViewsTable } from "@workspace/db";
-import { sql, gte, and } from "drizzle-orm";
+import { db, ordersTable, pageViewsTable, abandonedCartsTable } from "@workspace/db";
+import { sql } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router: IRouter = Router();
@@ -23,16 +23,12 @@ router.post("/analytics/pageview", async (req, res) => {
 router.get("/admin/analytics", requireAdmin, async (req, res) => {
   try {
     const now = new Date();
-
     const todayStart = new Date(now);
     todayStart.setHours(0, 0, 0, 0);
-
     const yesterdayStart = new Date(todayStart);
     yesterdayStart.setDate(yesterdayStart.getDate() - 1);
-
     const last7Start = new Date(todayStart);
     last7Start.setDate(last7Start.getDate() - 6);
-
     const last30Start = new Date(todayStart);
     last30Start.setDate(last30Start.getDate() - 29);
 
@@ -42,6 +38,8 @@ router.get("/admin/analytics", requireAdmin, async (req, res) => {
       ordersBySource,
       visitorStats,
       conversionData,
+      topCities,
+      abandonedStats,
     ] = await Promise.all([
       db.execute(sql`
         SELECT
@@ -49,24 +47,17 @@ router.get("/admin/analytics", requireAdmin, async (req, res) => {
           COUNT(*) as count
         FROM orders
         WHERE created_at >= ${last30Start}
-        GROUP BY date
-        ORDER BY date ASC
+        GROUP BY date ORDER BY date ASC
       `),
       db.execute(sql`
         SELECT
           EXTRACT(HOUR FROM created_at AT TIME ZONE 'Asia/Kolkata')::int as hour,
           COUNT(*) as count
-        FROM orders
-        GROUP BY hour
-        ORDER BY hour ASC
+        FROM orders GROUP BY hour ORDER BY hour ASC
       `),
       db.execute(sql`
-        SELECT
-          source,
-          COUNT(*) as count
-        FROM orders
-        GROUP BY source
-        ORDER BY count DESC
+        SELECT source, COUNT(*) as count
+        FROM orders GROUP BY source ORDER BY count DESC
       `),
       db.execute(sql`
         SELECT
@@ -86,10 +77,36 @@ router.get("/admin/analytics", requireAdmin, async (req, res) => {
           (SELECT COUNT(*) FROM page_views WHERE created_at >= ${todayStart}) as visitors_today,
           (SELECT COUNT(*) FROM orders WHERE created_at >= ${todayStart}) as orders_today
       `),
+      db.execute(sql`
+        SELECT
+          TRIM(
+            SPLIT_PART(
+              REGEXP_REPLACE(address, '\\s+', ' ', 'g'),
+              ',',
+              ARRAY_LENGTH(STRING_TO_ARRAY(address, ','), 1) - 1
+            )
+          ) as city,
+          COUNT(*) as count
+        FROM orders
+        WHERE address IS NOT NULL AND address != ''
+        GROUP BY city
+        HAVING TRIM(SPLIT_PART(REGEXP_REPLACE(address, '\\s+', ' ', 'g'), ',', ARRAY_LENGTH(STRING_TO_ARRAY(address, ','), 1) - 1)) != ''
+        ORDER BY count DESC
+        LIMIT 10
+      `),
+      db.execute(sql`
+        SELECT
+          COUNT(*) as total,
+          COUNT(*) FILTER (WHERE recovery_status = 'New') as new_count,
+          COUNT(*) FILTER (WHERE recovery_status = 'Called') as called,
+          COUNT(*) FILTER (WHERE recovery_status = 'Recovered') as recovered
+        FROM abandoned_carts
+      `),
     ]);
 
     const visRow = (visitorStats.rows[0] ?? {}) as Record<string, unknown>;
     const convRow = (conversionData.rows[0] ?? {}) as Record<string, unknown>;
+    const aRow = (abandonedStats.rows[0] ?? {}) as Record<string, unknown>;
 
     const v30 = Number(convRow["visitors_30d"] ?? 0);
     const o30 = Number(convRow["orders_30d"] ?? 0);
@@ -111,6 +128,10 @@ router.get("/admin/analytics", requireAdmin, async (req, res) => {
         const row = r as Record<string, unknown>;
         return { source: String(row["source"] ?? "Unknown"), count: Number(row["count"] ?? 0) };
       }),
+      topCities: topCities.rows.map((r) => {
+        const row = r as Record<string, unknown>;
+        return { city: String(row["city"] ?? "Unknown").trim(), count: Number(row["count"] ?? 0) };
+      }).filter((c) => c.city.length > 1),
       visitors: {
         today: Number(visRow["today"] ?? 0),
         yesterday: Number(visRow["yesterday"] ?? 0),
@@ -123,9 +144,15 @@ router.get("/admin/analytics", requireAdmin, async (req, res) => {
         last7: { visitors: v7, orders: o7, rate: v7 > 0 ? +((o7 / v7) * 100).toFixed(2) : 0 },
         today: { visitors: vToday, orders: oToday, rate: vToday > 0 ? +((oToday / vToday) * 100).toFixed(2) : 0 },
       },
+      abandonedStats: {
+        total: Number(aRow["total"] ?? 0),
+        new: Number(aRow["new_count"] ?? 0),
+        called: Number(aRow["called"] ?? 0),
+        recovered: Number(aRow["recovered"] ?? 0),
+      },
     });
   } catch (err) {
-    req.log?.error?.({ err }, "Analytics error");
+    console.error("Analytics error:", err);
     res.status(500).json({ error: "Failed to load analytics" });
   }
 });

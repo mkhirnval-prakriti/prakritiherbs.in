@@ -1,0 +1,46 @@
+**"Completely overhaul the Admin Panel at /admin to match the Shopify Professional Dashboard standards. Follow these specific requirements:
+
+Dashboard UI (Home): Create a professional layout with a left sidebar (Home, Orders, Abandoned Carts, Analytics, Settings). Top bar should have a Search bar for orders by 'Number' or 'Name'.
+
+Advanced Analytics (Shopify Style):
+
+Live View Map: Show a visual section (Top Cities) showing where customers are ordering from (e.g., Jaipur, Amritsar).
+
+Acquisition: Show a chart for 'Orders by Source' (Facebook, WhatsApp, Direct).
+
+Conversion: Show 'Total Visitors vs Total Orders' percentage bar.
+
+Abandoned Cart Recovery (Points 4 & 5):
+
+Create a dedicated 'Abandoned Carts' section.
+
+Capture incomplete forms (Name/Number) and show them with a 'Recovery Status' (Called, Follow-up, Recovered).
+
+Trigger 'InitiateCheckout' event via Meta CAPI for these leads.
+
+Customer Insights (Point 4): Show each customer's history. If they are repeat buyers, show a 'Loyalty Badge' and their previous order dates.
+
+Professional Reporting (Point 5):
+
+Add 3 download buttons: 'Export Excel (.xlsx)', 'Export PDF', and 'Export CSV'.
+
+Include all fields: Date, Name, Number (Capital N), Full Address, Pincode (Red alert if not 6 digits), City, and Source.
+
+Automated Operations (Points 6 & 7):
+
+Automated Daily Email: Send a summary to contact@prakritiherbs.in at 11:59 PM every night.
+
+Bulk Actions: Add checkboxes to orders to change status (e.g., Mark 50 orders as Shipped at once).
+
+Invoice Generator: Add a 'Print Invoice' button for GST-compliant PDF bills (Prakriti Herbs Private Limited).
+
+Speed & Security: Add pagination for faster loading and ensure all routes are JWT protected."**
+
+📊 Is Master Update ke baad aapko kya milega?
+Shopify Look: Aapka sidebar aur dashboard bilkul professional dikhega.
+
+Zero Waste: Abandoned cart se aap un logon ko bhi call kar payenge jo order poora nahi kar paye.
+
+Marketing Data: Aapko exact pata chalega ki Jaipur se kitne orders hain aur Amritsar se kitne, taaki aap Ads ka paisa sahi jagah lagayein.
+
+Time Saving: Bulk update aur automated email se aapka aur aapke 25 logon ke staff ka kaafi samay bachega.

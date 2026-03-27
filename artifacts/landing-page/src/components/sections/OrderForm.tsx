@@ -1,8 +1,19 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, ShieldCheck, Truck, Package, X, Loader2 } from "lucide-react";
 import { cleanMobile, sendLeadToCRM, DuplicateOrderError, hasOrderedToday } from "@/lib/crm";
 import { fireLead, fireInitiateCheckout, markPaymentInitiated, generateEventId, getCookie } from "@/lib/pixel";
+
+function captureAbandonedCart(name: string, phone: string, address: string, pincode: string) {
+  const cleanPhone = phone.replace(/\D/g, "").slice(-10);
+  if (cleanPhone.length < 10) return;
+  fetch("/api/abandoned-cart", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: name.trim(), phone: cleanPhone, address: address.trim() || null, pincode: pincode.trim() || null, source: "COD" }),
+    keepalive: true,
+  }).catch(() => {});
+}
 
 const GOOGLE_SHEET_URL =
   "https://script.google.com/macros/s/AKfycbyh89OCWVJJePou7B73Q0H2mJBzlWewT4YORz0QF0U2AVb1QvkKLp-h0_MjveBxc_2Txw/exec";
@@ -99,6 +110,7 @@ export function OrderForm() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const abandonedFired = useRef(false);
 
   function validate() {
     const e: Record<string, string> = {};
@@ -328,6 +340,12 @@ export function OrderForm() {
                         type="tel"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
+                        onBlur={() => {
+                          if (!abandonedFired.current && name.trim().length >= 2 && phone.replace(/\D/g, "").length >= 10) {
+                            abandonedFired.current = true;
+                            captureAbandonedCart(name, phone, address, pincode);
+                          }
+                        }}
                         className={`${inputClass("phone")} pl-12`}
                         placeholder="98765 43210"
                         maxLength={10}
