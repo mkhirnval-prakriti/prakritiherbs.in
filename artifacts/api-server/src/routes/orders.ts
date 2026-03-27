@@ -70,7 +70,7 @@ router.post("/orders", async (req, res) => {
         order_id: orderId,
         num_items: quantity,
       },
-    }).catch((err) => {
+    }, source).catch((err) => {
       req.log.warn({ err }, "[CAPI] Lead event failed (non-blocking)");
     });
 

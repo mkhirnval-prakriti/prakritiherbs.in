@@ -176,28 +176,45 @@ export async function sendCapiEvent(params: CAPIEventParams): Promise<boolean> {
 }
 
 /**
- * Fire CAPI event to ALL active agency profiles simultaneously.
- * Also fires to the default pixel (META_ACCESS_TOKEN) if set.
- * Uses Promise.allSettled so one agency failure never blocks others.
+ * Fire CAPI event to the default pixel + any active agency whose sourceName
+ * matches the incoming order's source tag (case-insensitive).
+ *
+ * Logic:
+ *  - Main pixel (META_ACCESS_TOKEN): ALWAYS fires — it is the primary pixel.
+ *  - Agency pixels: fire ONLY when orderSource matches the agency's sourceName.
+ *    e.g. orderSource="sartaj" → Sartaj agency pixel fires alongside main pixel.
+ *    e.g. orderSource="organic" or undefined → only main pixel fires.
+ *
+ * Uses Promise.allSettled so one failure never blocks the others.
  */
-export async function sendCapiToAllAgencies(params: CAPIEventParams): Promise<void> {
+export async function sendCapiToAllAgencies(
+  params: CAPIEventParams,
+  orderSource?: string,
+): Promise<void> {
   const fires: Promise<boolean>[] = [];
 
-  // 1. Default pixel (env token)
+  // 1. Default pixel (env token) — always fires
   const envToken = process.env["META_ACCESS_TOKEN"];
   if (envToken) {
     fires.push(fireToPixel(params, DEFAULT_PIXEL_ID, envToken, "default"));
   }
 
-  // 2. Active agency profiles
-  try {
-    const agencies = await readAgencies();
-    for (const agency of agencies) {
-      if (!agency.active || !agency.capiToken || !agency.pixelId) continue;
-      fires.push(fireToPixel(params, agency.pixelId, agency.capiToken, agency.name));
+  // 2. Agency pixels — fire only when source matches
+  if (orderSource) {
+    try {
+      const agencies = await readAgencies();
+      for (const agency of agencies) {
+        if (!agency.active || !agency.capiToken || !agency.pixelId) continue;
+        if (!agency.sourceName) continue;
+        const matches = orderSource.trim().toLowerCase() === agency.sourceName.trim().toLowerCase();
+        if (matches) {
+          console.log(`[CAPI] Source "${orderSource}" matched agency "${agency.name}" — firing agency pixel`);
+          fires.push(fireToPixel(params, agency.pixelId, agency.capiToken, agency.name));
+        }
+      }
+    } catch (err) {
+      console.warn("[CAPI] Could not read agency profiles:", err);
     }
-  } catch (err) {
-    console.warn("[CAPI] Could not read agency profiles:", err);
   }
 
   if (fires.length === 0) return;
