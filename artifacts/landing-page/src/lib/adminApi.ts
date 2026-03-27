@@ -69,7 +69,7 @@ export async function changePassword(currentPassword: string, newPassword: strin
 
 export interface Order {
   id: number; orderId: string; name: string; phone: string; email: string | null; address: string;
-  pincode: string; quantity: number; product: string; source: string; status: string;
+  pincode: string; city: string | null; state: string | null; quantity: number; product: string; source: string; status: string;
   paymentMethod: string | null; paymentId: string | null; paymentStatus: string | null;
   trackingId: string | null; courier: string | null; visitorSource: string | null; createdAt: string; isRepeat?: boolean;
 }
@@ -404,8 +404,9 @@ export function pincodeToState(pincode: string | null | undefined): string {
 export function exportOrdersToXLSX(orders: Order[], filename = "orders.xlsx"): void {
   const rows = orders.map((o) => ({
     "Order ID": o.orderId, "Date (IST)": fmtISTForExport(o.createdAt),
-    "Name": o.name, "Mobile": o.phone, "Email": o.email ?? "", "City": extractCity(o.address), "Address": o.address, "Pincode": o.pincode,
-    "State": pincodeToState(o.pincode),
+    "Name": o.name, "Mobile": o.phone, "Email": o.email ?? "",
+    "City": o.city ?? extractCity(o.address), "State": o.state ?? pincodeToState(o.pincode),
+    "Address": o.address, "Pincode": o.pincode,
     "Qty": o.quantity, "Amount (₹)": 999 * o.quantity,
     "Channel": o.visitorSource ?? "Direct", "Source": o.source,
     "Payment": o.paymentMethod ?? "COD", "Pay Status": o.paymentStatus ?? "pending",
@@ -452,8 +453,8 @@ export function exportOrdersToCSV(orders: Order[], filename = "orders.csv"): voi
   const headers = ["Order ID", "Date (IST)", "Name", "Mobile", "Email", "City", "Address", "Pincode", "State", "Qty", "Amount (₹)", "Source", "Channel", "Payment", "Pay Status", "Status", "Tracking", "Courier", "Repeat"];
   const rows = orders.map((o) => [
     o.orderId, fmtISTForExport(o.createdAt), `"${o.name}"`, o.phone, o.email ?? "",
-    `"${extractCity(o.address)}"`, `"${o.address}"`,
-    o.pincode, pincodeToState(o.pincode), o.quantity, 999 * o.quantity,
+    `"${o.city ?? extractCity(o.address)}"`, `"${o.address}"`,
+    o.pincode, o.state ?? pincodeToState(o.pincode), o.quantity, 999 * o.quantity,
     o.visitorSource ?? "Direct", o.source, o.paymentMethod ?? "COD",
     o.paymentStatus ?? "pending", o.status, o.trackingId ?? "", o.courier ?? "", o.isRepeat ? "Yes" : "No",
   ]);

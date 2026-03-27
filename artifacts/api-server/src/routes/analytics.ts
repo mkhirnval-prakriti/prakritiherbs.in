@@ -127,14 +127,20 @@ router.get("/admin/analytics", requireAdmin, async (req, res) => {
       `), { rows: [{ visitors_30d: 0, orders_30d: 0, visitors_7d: 0, orders_7d: 0, visitors_today: 0, orders_today: 0 }] }),
       safeQuery(() => db.execute(sql`
         SELECT
-          TRIM(SPLIT_PART(REGEXP_REPLACE(address, '\\s+', ' ', 'g'), ',',
-            ARRAY_LENGTH(STRING_TO_ARRAY(address, ','), 1) - 1)) as city,
+          COALESCE(
+            NULLIF(TRIM(city), ''),
+            NULLIF(TRIM(SPLIT_PART(REGEXP_REPLACE(address, '\\s+', ' ', 'g'), ',',
+              ARRAY_LENGTH(STRING_TO_ARRAY(address, ','), 1) - 1)), '')
+          ) as city,
           COUNT(*) as count,
           SUM(999 * quantity) as revenue
         FROM orders
         WHERE address IS NOT NULL AND address != ''
         GROUP BY city
-        HAVING TRIM(SPLIT_PART(REGEXP_REPLACE(address, '\\s+', ' ', 'g'), ',', ARRAY_LENGTH(STRING_TO_ARRAY(address, ','), 1) - 1)) != ''
+        HAVING COALESCE(
+          NULLIF(TRIM(city), ''),
+          NULLIF(TRIM(SPLIT_PART(REGEXP_REPLACE(address, '\\s+', ' ', 'g'), ',', ARRAY_LENGTH(STRING_TO_ARRAY(address, ','), 1) - 1)), '')
+        ) IS NOT NULL
         ORDER BY count DESC LIMIT 10
       `), emptyRows),
       safeQuery(() => db.execute(sql`
@@ -163,14 +169,14 @@ router.get("/admin/analytics", requireAdmin, async (req, res) => {
         FROM orders WHERE created_at >= ${periodFrom} AND created_at <= ${periodTo}
       `), { rows: [{ count: 0, revenue: 0 }] }),
 
-      /* Top states by orders — derived from pincode prefix */
+      /* Top states by orders — prefer stored state column, fallback to pincode prefix */
       safeQuery(() => db.execute(sql`
         SELECT
-          ${STATE_CASE} as state,
+          COALESCE(NULLIF(TRIM(state), ''), ${STATE_CASE}) as state,
           COUNT(*) as count,
           COALESCE(SUM(999 * quantity), 0) as revenue
         FROM orders
-        WHERE pincode IS NOT NULL AND pincode != '' AND LENGTH(pincode) >= 2 AND pincode != '000000'
+        WHERE (state IS NOT NULL AND state != '') OR (pincode IS NOT NULL AND pincode != '' AND LENGTH(pincode) >= 2 AND pincode != '000000')
         GROUP BY state
         ORDER BY count DESC
         LIMIT 20
@@ -179,11 +185,11 @@ router.get("/admin/analytics", requireAdmin, async (req, res) => {
       /* State × Source breakdown for filter */
       safeQuery(() => db.execute(sql`
         SELECT
-          ${STATE_CASE} as state,
+          COALESCE(NULLIF(TRIM(state), ''), ${STATE_CASE}) as state,
           COALESCE(visitor_source, source, 'Direct') as source,
           COUNT(*) as count
         FROM orders
-        WHERE pincode IS NOT NULL AND pincode != '' AND LENGTH(pincode) >= 2 AND pincode != '000000'
+        WHERE (state IS NOT NULL AND state != '') OR (pincode IS NOT NULL AND pincode != '' AND LENGTH(pincode) >= 2 AND pincode != '000000')
         GROUP BY state, source
         ORDER BY count DESC
       `), emptyRows),

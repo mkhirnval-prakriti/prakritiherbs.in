@@ -113,6 +113,7 @@ export interface CRMFields {
   address: string;
   pincode: string;
   Number:  string;
+  STATE?:  string;
 }
 
 export async function sendLeadToCRM(fields: CRMFields): Promise<void> {
@@ -121,7 +122,7 @@ export async function sendLeadToCRM(fields: CRMFields): Promise<void> {
     throw new DuplicateOrderError();
   }
 
-  const payload = {
+  const payload: Record<string, string> = {
     name:          fields.name,
     address:       fields.address,
     pincode:       cleanPincode(fields.pincode),
@@ -131,6 +132,7 @@ export async function sendLeadToCRM(fields: CRMFields): Promise<void> {
     websiteSource: "ind Store",
     date:          getISTTimestamp(),
   };
+  if (fields.STATE) payload.STATE = fields.STATE;
 
   console.log("[CRM] Payload to be sent:", JSON.stringify(payload, null, 2));
 

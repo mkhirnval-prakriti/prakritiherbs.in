@@ -23,9 +23,13 @@ router.post("/orders", async (req, res) => {
     fbp?: string;
     fbc?: string;
     userAgent?: string;
+    city?: string;
+    state?: string;
   };
   const source = body.source ?? "COD";
   const visitorSource = body.visitorSource ?? "Direct";
+  const city = typeof body.city === "string" ? body.city.trim() || null : null;
+  const state = typeof body.state === "string" ? body.state.trim() || null : null;
   /* Email is stored locally only — NEVER forwarded to CRM or Meta CAPI */
   const email = typeof body.email === "string" && body.email.includes("@") ? body.email.trim().toLowerCase() : null;
   const orderId = `ORD-${nanoid(8).toUpperCase()}`;
@@ -40,6 +44,8 @@ router.post("/orders", async (req, res) => {
         email,
         address,
         pincode,
+        city,
+        state,
         quantity,
         product,
         source,
