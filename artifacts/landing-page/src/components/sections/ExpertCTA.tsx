@@ -1,10 +1,9 @@
-import { useState } from "react";
 import { motion } from "framer-motion";
 import { Phone, MessageCircle } from "lucide-react";
-import { WhatsAppChooser } from "@/components/FloatingContact";
+
+const WA_EXPERT = `https://wa.me/918968122246?text=${encodeURIComponent("मुझे KamaSutra Gold+ के बारे में जानकारी चाहिए")}`;
 
 export function ExpertCTA() {
-  const [chooserOpen, setChooserOpen] = useState(false);
   return (
     <section className="py-20 bg-muted/40 border-y border-border">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -32,17 +31,15 @@ export function ExpertCTA() {
               <Phone className="w-5 h-5" />
               Call Now – +91 89681 22246
             </a>
-            {chooserOpen && (
-              <WhatsAppChooser message="मुझे KamaSutra Gold+ के बारे में जानकारी चाहिए" onClose={() => setChooserOpen(false)} />
-            )}
-            <button
-              type="button"
-              onClick={() => setChooserOpen(true)}
+            <a
+              href={WA_EXPERT}
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-[#25D366] text-white font-bold text-lg rounded-xl shadow-lg hover:bg-[#20bd5a] hover:scale-[1.03] active:scale-[0.97] transition-all"
             >
               <MessageCircle className="w-5 h-5" />
               WhatsApp Expert
-            </button>
+            </a>
           </div>
           <p className="text-sm text-muted-foreground mt-6">
             सुबह 9 बजे से रात 9 बजे तक उपलब्ध • 100% Confidential
