@@ -3,7 +3,7 @@ import {
   fetchOrders, updateOrderStatus, exportOrdersToXLSX, exportSingleOrderToXLSX,
   exportSingleOrderToPDF, exportOrdersToPDF, exportOrdersToCSV, logDownload,
   bulkUpdateOrderStatus, shipViaShinprocket, updateIndiaPostTracking,
-  sendWhatsAppToOrder,
+  sendWhatsAppToOrder, shipViaShadowfax, getShadowfaxLabel,
   type Order, type OrderStats,
 } from "@/lib/adminApi";
 import jsPDF from "jspdf";
@@ -11,7 +11,7 @@ import autoTable from "jspdf-autotable";
 import {
   Search, RefreshCw, Download, Filter, FileSpreadsheet, FileText,
   ChevronLeft, ChevronRight, Package, CheckSquare, Square, AlertCircle,
-  Printer, Truck, MessageSquare, BadgeCheck, Star, X,
+  Printer, Truck, MessageSquare, Star, X, Zap, ExternalLink, Tag,
 } from "lucide-react";
 
 const G = "#1B5E20";
@@ -200,11 +200,43 @@ function toWords(n: number): string {
   return n.toLocaleString();
 }
 
+function ShadowfaxWarningModal({ pincode, onClose }: { pincode: string; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+            <AlertCircle className="w-5 h-5 text-red-600" />
+          </div>
+          <div>
+            <h3 className="font-bold text-gray-900">Pincode Not Serviceable</h3>
+            <p className="text-xs text-gray-500">Shadowfax delivery check failed</p>
+          </div>
+        </div>
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
+          <p className="text-sm text-red-800 font-semibold">
+            ⚠️ Pincode <span className="font-mono bg-red-100 px-1.5 py-0.5 rounded">{pincode}</span> is <strong>not serviceable</strong> by Shadowfax.
+          </p>
+          <p className="text-xs text-red-700 mt-2">
+            This customer's delivery area is outside Shadowfax's current coverage. Please use Shiprocket or India Post for this order.
+          </p>
+        </div>
+        <button onClick={onClose}
+          className="w-full px-4 py-2.5 rounded-xl text-sm font-bold text-white"
+          style={{ background: "#ef4444" }}>
+          Understood
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function RowActions({ order, onShipped, settings }: { order: Order; onShipped: (id: number) => void; settings: Record<string, string> }) {
   const [open, setOpen] = useState(false);
   const [shipLoading, setShipLoading] = useState(false);
   const [showIndiaPost, setShowIndiaPost] = useState(false);
   const [showWA, setShowWA] = useState(false);
+  const [sfxWarning, setSfxWarning] = useState<string | null>(null);
 
   async function handleShiprocket() {
     setOpen(false); setShipLoading(true);
@@ -216,8 +248,25 @@ function RowActions({ order, onShipped, settings }: { order: Order; onShipped: (
     finally { setShipLoading(false); }
   }
 
+  async function handleShadowfax() {
+    setOpen(false); setShipLoading(true);
+    try {
+      const r = await shipViaShadowfax(order.id);
+      alert(`✅ Shipped via Shadowfax!\nAWB: ${r.awb}${r.zone ? `\nZone: ${r.zone}` : ""}\n🔗 ${r.trackingUrl}\n📄 Label URL ready — use "Download Label" in tracking column.`);
+      onShipped(order.id);
+    } catch (err) {
+      const e = err as Error & { serviceable?: boolean; pincode?: string };
+      if (e.serviceable === false) {
+        setSfxWarning(e.pincode ?? order.pincode);
+      } else {
+        alert(e.message ?? "Shadowfax shipping failed");
+      }
+    } finally { setShipLoading(false); }
+  }
+
   return (
     <>
+      {sfxWarning && <ShadowfaxWarningModal pincode={sfxWarning} onClose={() => setSfxWarning(null)} />}
       {showIndiaPost && <IndiaPostModal orderId={order.id} onClose={() => setShowIndiaPost(false)} onSave={(_, t) => { alert(`✅ India Post tracking saved: ${t}`); onShipped(order.id); }} />}
       {showWA && <WhatsAppModal order={order} onClose={() => setShowWA(false)} />}
 
@@ -235,7 +284,7 @@ function RowActions({ order, onShipped, settings }: { order: Order; onShipped: (
           {open && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 py-1 min-w-[200px]">
+              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 py-1 min-w-[210px]">
                 <div className="px-3 py-1.5 border-b border-gray-100">
                   <p className="text-xs font-semibold text-gray-400 uppercase">Download</p>
                 </div>
@@ -254,6 +303,12 @@ function RowActions({ order, onShipped, settings }: { order: Order; onShipped: (
                 <div className="px-3 py-1.5 border-t border-gray-100">
                   <p className="text-xs font-semibold text-gray-400 uppercase">Ship</p>
                 </div>
+                <button onClick={handleShadowfax}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-orange-50">
+                  <Zap className="w-3.5 h-3.5 text-orange-500" />
+                  <span>Shadowfax</span>
+                  <span className="ml-auto text-orange-400 text-xs font-bold">NEW</span>
+                </button>
                 <button onClick={handleShiprocket}
                   className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-blue-50">
                   <Truck className="w-3.5 h-3.5 text-blue-600" /> Shiprocket
@@ -468,11 +523,35 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
                           </td>
                           <td className="px-3 py-3 text-xs">
                             {order.trackingId ? (
-                              <div>
-                                <div className="text-gray-500 text-xs">{order.courier}</div>
-                                <a href={order.courier === "India Post" ? `https://www.indiapost.gov.in/_layouts/15/dop.portal.tracking/trackconsignment.aspx` : `https://shiprocket.co/tracking/${order.trackingId}`}
+                              <div className="space-y-0.5">
+                                <div className={`text-xs font-semibold flex items-center gap-1 ${order.courier === "Shadowfax" ? "text-orange-600" : order.courier === "India Post" ? "text-red-700" : "text-blue-700"}`}>
+                                  {order.courier === "Shadowfax" && <Zap className="w-3 h-3" />}
+                                  {order.courier === "India Post" && <Package className="w-3 h-3" />}
+                                  {order.courier === "Shiprocket" && <Truck className="w-3 h-3" />}
+                                  {order.courier}
+                                </div>
+                                <a
+                                  href={
+                                    order.courier === "Shadowfax" ? `https://shadowfax.in/track-your-order/?awb=${order.trackingId}` :
+                                    order.courier === "India Post" ? `https://www.indiapost.gov.in/_layouts/15/dop.portal.tracking/trackconsignment.aspx` :
+                                    `https://shiprocket.co/tracking/${order.trackingId}`
+                                  }
                                   target="_blank" rel="noopener noreferrer"
-                                  className="text-blue-600 hover:underline font-mono text-xs">{order.trackingId}</a>
+                                  className="text-blue-600 hover:underline font-mono text-xs flex items-center gap-0.5">
+                                  {order.trackingId} <ExternalLink className="w-2.5 h-2.5 opacity-60" />
+                                </a>
+                                {order.courier === "Shadowfax" && (
+                                  <button
+                                    onClick={async () => {
+                                      try {
+                                        const { labelUrl } = await getShadowfaxLabel(order.id);
+                                        window.open(labelUrl, "_blank");
+                                      } catch { alert("Could not fetch shipping label. Check Shadowfax credentials."); }
+                                    }}
+                                    className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded text-xs font-semibold bg-orange-100 text-orange-700 hover:bg-orange-200 transition-colors">
+                                    <Tag className="w-3 h-3" /> Download Label
+                                  </button>
+                                )}
                               </div>
                             ) : <span className="text-gray-300">—</span>}
                           </td>

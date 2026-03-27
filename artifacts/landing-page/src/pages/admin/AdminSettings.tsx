@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { fetchSettings, saveSettings } from "@/lib/adminApi";
-import { Save, Truck, MessageSquare, CreditCard, Building2, Mail, Clock, ExternalLink, CheckCircle, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { Save, Truck, MessageSquare, CreditCard, Building2, Mail, Clock, ExternalLink, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Zap } from "lucide-react";
 
 const G = "#1B5E20";
 
@@ -78,6 +78,42 @@ export function AdminSettings() {
   return (
     <div className="space-y-4 max-w-3xl">
       <h1 className="text-xl font-bold text-gray-900">Settings & Integrations</h1>
+
+      <Section title="Shadowfax Courier Integration" icon={<Zap className="w-4 h-4" />}>
+        <div className="space-y-4">
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-xs text-orange-800 flex items-start gap-2">
+            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+            <div>
+              Enter your Shadowfax API credentials. The system will check pincode serviceability before creating each shipment.
+              <a href="https://api.shadowfax.in" target="_blank" rel="noopener noreferrer" className="ml-1 underline">Open Shadowfax Dashboard <ExternalLink className="w-3 h-3 inline" /></a>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Field label="Client ID" name="shadowfax_client_id" placeholder="e.g. SFX12345" value={values["shadowfax_client_id"] ?? ""} onChange={setVal} />
+            <Field label="API Token" name="shadowfax_api_token" type="password" placeholder="••••••••••••" value={values["shadowfax_api_token"] ?? ""} onChange={setVal} />
+            <Field label="Store ID (optional)" name="shadowfax_store_id" placeholder="e.g. STORE01" value={values["shadowfax_store_id"] ?? ""} onChange={setVal} />
+          </div>
+          <div className="border-t border-gray-100 pt-3">
+            <p className="text-xs font-semibold text-gray-600 mb-3">Pickup Location (your warehouse/dispatch address)</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Field label="Pickup Pincode" name="shadowfax_pickup_pincode" placeholder="e.g. 302001" value={values["shadowfax_pickup_pincode"] ?? ""} onChange={setVal} />
+              <Field label="Pickup Contact (10-digit)" name="shadowfax_pickup_contact" placeholder="e.g. 8968122246" value={values["shadowfax_pickup_contact"] ?? ""} onChange={setVal} />
+              <Field label="Pickup Address" name="shadowfax_pickup_address" placeholder="e.g. Plot 12, Industrial Area, Jaipur" value={values["shadowfax_pickup_address"] ?? ""} onChange={setVal} />
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs">
+              {exists["shadowfax_client_id"] && exists["shadowfax_api_token"]
+                ? <><CheckCircle className="w-3.5 h-3.5 text-green-600" /><span className="text-green-700">Shadowfax configured</span></>
+                : <><AlertCircle className="w-3.5 h-3.5 text-orange-500" /><span className="text-orange-600">Not configured</span></>}
+            </div>
+            <button onClick={() => save(["shadowfax_client_id", "shadowfax_api_token", "shadowfax_store_id", "shadowfax_pickup_pincode", "shadowfax_pickup_address", "shadowfax_pickup_contact"], "shadowfax")} disabled={saving === "shadowfax"}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60" style={{ background: G }}>
+              <Save className="w-3.5 h-3.5" /> {saving === "shadowfax" ? "Saving..." : "Save"}
+            </button>
+          </div>
+        </div>
+      </Section>
 
       <Section title="Shiprocket Integration" icon={<Truck className="w-4 h-4" />}>
         <div className="space-y-4">

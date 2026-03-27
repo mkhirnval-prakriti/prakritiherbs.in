@@ -210,6 +210,147 @@ router.post("/admin/orders/:id/ship-indiapost", requireAdmin, async (req, res) =
   }
 });
 
+/* ─── Shadowfax ─── */
+async function checkShadowfaxServiceability(clientId: string, token: string, pincode: string): Promise<{ serviceable: boolean; zone?: string }> {
+  const url = `https://api.shadowfax.in/api/serviceability/?client_id=${encodeURIComponent(clientId)}&pincode=${encodeURIComponent(pincode)}&token=${encodeURIComponent(token)}`;
+  const res = await fetch(url, { headers: { "Authorization": `Token ${token}` } });
+  if (!res.ok) return { serviceable: false };
+  const data = await res.json() as { status?: boolean; results?: { serviceable?: boolean; zone?: string }[] };
+  const first = data.results?.[0];
+  return { serviceable: first?.serviceable ?? data.status ?? false, zone: first?.zone };
+}
+
+router.post("/admin/orders/:id/ship-shadowfax", requireAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id)).limit(1);
+    if (!order) { res.status(404).json({ error: "Order not found" }); return; }
+
+    const settings = await getSettings([
+      "shadowfax_client_id", "shadowfax_api_token", "shadowfax_store_id",
+      "shadowfax_pickup_pincode", "shadowfax_pickup_address", "shadowfax_pickup_contact",
+    ]);
+
+    const clientId = process.env["SHADOWFAX_CLIENT_ID"] ?? settings["shadowfax_client_id"];
+    const apiToken = process.env["SHADOWFAX_API_TOKEN"] ?? settings["shadowfax_api_token"];
+    const storeId = process.env["SHADOWFAX_STORE_ID"] ?? settings["shadowfax_store_id"];
+
+    if (!clientId || !apiToken) {
+      res.status(503).json({ error: "Shadowfax credentials not configured. Add them in Settings → Shadowfax Integration." });
+      return;
+    }
+
+    const serviceability = await checkShadowfaxServiceability(clientId, apiToken, order.pincode);
+    if (!serviceability.serviceable) {
+      res.status(422).json({
+        error: `Pincode ${order.pincode} is NOT serviceable by Shadowfax.`,
+        pincode: order.pincode,
+        serviceable: false,
+      });
+      return;
+    }
+
+    const cleanPhone = order.phone.replace(/\D/g, "").slice(-10);
+    const pickupContact = settings["shadowfax_pickup_contact"] ?? "8968122246";
+    const pickupPincode = settings["shadowfax_pickup_pincode"] ?? "302001";
+    const pickupAddress = settings["shadowfax_pickup_address"] ?? "Prakriti Herbs, Jaipur, Rajasthan";
+
+    const createRes = await fetch("https://api.shadowfax.in/api/order/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Token ${apiToken}`,
+      },
+      body: JSON.stringify({
+        order_meta: {
+          client_order_id: order.orderId,
+          products: [{
+            name: "KamaSutra Gold+ (Ayurvedic Supplement)",
+            quantity: order.quantity,
+            price: 999 * order.quantity,
+          }],
+        },
+        deliver_details: {
+          name: order.name,
+          contact: cleanPhone,
+          address: order.address,
+          pincode: order.pincode,
+          city: "",
+        },
+        pickup_details: {
+          name: "Prakriti Herbs Pvt Ltd",
+          contact: pickupContact,
+          address: pickupAddress,
+          pincode: pickupPincode,
+        },
+        payment_mode: order.paymentStatus === "success" ? "PREPAID" : "COD",
+        cod_amount: order.paymentStatus === "success" ? 0 : 999 * order.quantity,
+        weight: 300 * order.quantity,
+        client_id: clientId,
+        ...(storeId ? { store_id: storeId } : {}),
+      }),
+    });
+
+    const createData = await createRes.json() as {
+      tracking_id?: string; awb?: string; sfx_order_id?: string;
+      message?: string; errors?: unknown; status?: string;
+    };
+
+    if (!createRes.ok || (!createData.tracking_id && !createData.awb)) {
+      const errMsg = createData.message ?? JSON.stringify(createData.errors ?? createData);
+      res.status(createRes.status).json({ error: `Shadowfax error: ${errMsg}` });
+      return;
+    }
+
+    const awb = createData.tracking_id ?? createData.awb ?? `SFX-${order.orderId}`;
+    const labelUrl = `https://api.shadowfax.in/api/order/label/?awb=${awb}&token=${apiToken}`;
+    const trackingUrl = `https://shadowfax.in/track-your-order/?awb=${awb}`;
+
+    await db.update(ordersTable).set({
+      trackingId: awb,
+      courier: "Shadowfax",
+      status: "Shipped",
+    }).where(eq(ordersTable.id, id));
+
+    res.json({ awb, courier: "Shadowfax", trackingUrl, labelUrl, zone: serviceability.zone });
+  } catch (err) {
+    req.log.error({ err }, "Shadowfax error");
+    res.status(500).json({ error: err instanceof Error ? err.message : "Shadowfax shipping failed" });
+  }
+});
+
+router.get("/admin/orders/:id/shadowfax-label", requireAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const [order] = await db.select({ trackingId: ordersTable.trackingId, courier: ordersTable.courier }).from(ordersTable).where(eq(ordersTable.id, id)).limit(1);
+    if (!order?.trackingId || order.courier !== "Shadowfax") {
+      res.status(404).json({ error: "No Shadowfax shipment found for this order" });
+      return;
+    }
+    const settings = await getSettings(["shadowfax_api_token"]);
+    const apiToken = process.env["SHADOWFAX_API_TOKEN"] ?? settings["shadowfax_api_token"];
+    if (!apiToken) { res.status(503).json({ error: "Shadowfax token not configured" }); return; }
+    const labelUrl = `https://api.shadowfax.in/api/order/label/?awb=${order.trackingId}&token=${apiToken}`;
+    res.json({ labelUrl, awb: order.trackingId });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to get label URL" });
+  }
+});
+
+router.get("/admin/shadowfax/serviceability/:pincode", requireAdmin, async (req, res) => {
+  try {
+    const { pincode } = req.params;
+    const settings = await getSettings(["shadowfax_client_id", "shadowfax_api_token"]);
+    const clientId = process.env["SHADOWFAX_CLIENT_ID"] ?? settings["shadowfax_client_id"];
+    const apiToken = process.env["SHADOWFAX_API_TOKEN"] ?? settings["shadowfax_api_token"];
+    if (!clientId || !apiToken) { res.status(503).json({ error: "Shadowfax not configured" }); return; }
+    const result = await checkShadowfaxServiceability(clientId, apiToken, pincode);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: "Serviceability check failed" });
+  }
+});
+
 /* ─── WhatsApp ─── */
 async function sendWhatsAppMsg(phone: string, message: string): Promise<void> {
   const settings = await getSettings(["whatsapp_api_url", "whatsapp_api_key", "whatsapp_provider"]);

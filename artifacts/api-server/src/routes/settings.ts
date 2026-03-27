@@ -8,6 +8,12 @@ const router: IRouter = Router();
 const ALLOWED_KEYS = [
   "shiprocket_email",
   "shiprocket_password",
+  "shadowfax_client_id",
+  "shadowfax_api_token",
+  "shadowfax_store_id",
+  "shadowfax_pickup_pincode",
+  "shadowfax_pickup_address",
+  "shadowfax_pickup_contact",
   "whatsapp_api_url",
   "whatsapp_api_key",
   "whatsapp_provider",

@@ -107,6 +107,30 @@ export async function shipViaShinprocket(id: number): Promise<{ awb: string; cou
   return res.json();
 }
 
+export async function shipViaShadowfax(id: number): Promise<{ awb: string; courier: string; trackingUrl: string; labelUrl: string; zone?: string }> {
+  const res = await authFetch(`/admin/orders/${id}/ship-shadowfax`, { method: "POST" });
+  const data = await res.json() as { awb?: string; courier?: string; trackingUrl?: string; labelUrl?: string; zone?: string; error?: string; serviceable?: boolean; pincode?: string };
+  if (!res.ok) {
+    const err = new Error(data.error ?? "Shadowfax shipping failed") as Error & { serviceable?: boolean; pincode?: string };
+    err.serviceable = data.serviceable;
+    err.pincode = data.pincode;
+    throw err;
+  }
+  return data as { awb: string; courier: string; trackingUrl: string; labelUrl: string; zone?: string };
+}
+
+export async function getShadowfaxLabel(id: number): Promise<{ labelUrl: string; awb: string }> {
+  const res = await authFetch(`/admin/orders/${id}/shadowfax-label`);
+  if (!res.ok) throw new Error("Could not fetch label");
+  return res.json();
+}
+
+export async function checkShadowfaxServiceability(pincode: string): Promise<{ serviceable: boolean; zone?: string }> {
+  const res = await authFetch(`/admin/shadowfax/serviceability/${pincode}`);
+  if (!res.ok) return { serviceable: false };
+  return res.json();
+}
+
 export async function updateIndiaPostTracking(id: number, trackingId: string): Promise<void> {
   const res = await authFetch(`/admin/orders/${id}/ship-indiapost`, { method: "POST", body: JSON.stringify({ trackingId }) });
   if (!res.ok) throw new Error("Failed to update tracking");
