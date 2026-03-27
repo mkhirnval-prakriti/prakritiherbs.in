@@ -198,6 +198,58 @@ router.post("/admin/orders/bulk-status", requireAdmin, async (req, res) => {
   }
 });
 
+/* ─── Delete Audit Log ─── */
+interface DeleteAuditEntry {
+  id: string; entityType: "order" | "abandoned_cart";
+  entityId: number; entityRef: string; deletedBy: string; deletedAt: string;
+}
+
+async function appendDeleteAudit(entries: Omit<DeleteAuditEntry, "id">[]): Promise<void> {
+  try {
+    const [row] = await db.select().from(appSettingsTable).where(eq(appSettingsTable.key, "delete_audit_log"));
+    const existing: DeleteAuditEntry[] = row ? JSON.parse(row.value) as DeleteAuditEntry[] : [];
+    const merged = [...entries.map((e) => ({ ...e, id: crypto.randomUUID() })), ...existing].slice(0, 500);
+    await saveSettingsBatch({ delete_audit_log: JSON.stringify(merged) });
+  } catch (err) { console.error("[AUDIT] Failed to save audit log:", err); }
+}
+
+router.get("/admin/delete-audit-log", requireSuperAdmin, async (_req, res) => {
+  try {
+    const [row] = await db.select().from(appSettingsTable).where(eq(appSettingsTable.key, "delete_audit_log"));
+    const entries: DeleteAuditEntry[] = row ? JSON.parse(row.value) as DeleteAuditEntry[] : [];
+    return res.json({ entries });
+  } catch { return res.status(500).json({ error: "Failed to fetch audit log" }); }
+});
+
+/* ─── Order Delete (Super Admin only) ─── */
+router.delete("/admin/orders/:id", requireSuperAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params["id"] ?? "0", 10);
+    if (!id) return res.status(400).json({ error: "Invalid id" });
+    const actor = ((req as unknown) as { admin: { username: string } }).admin.username;
+    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    await db.delete(ordersTable).where(eq(ordersTable.id, id));
+    await appendDeleteAudit([{ entityType: "order", entityId: id, entityRef: `${order.orderId} — ${order.name} (${order.phone})`, deletedBy: actor, deletedAt: new Date().toISOString() }]);
+    return res.json({ ok: true });
+  } catch { return res.status(500).json({ error: "Delete failed" }); }
+});
+
+router.post("/admin/orders/bulk-delete", requireSuperAdmin, async (req, res) => {
+  try {
+    const { ids } = req.body as { ids?: number[] };
+    if (!ids || !Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: "ids required" });
+    const actor = ((req as unknown) as { admin: { username: string } }).admin.username;
+    const { rows } = await pool.query<{ id: number; order_id: string; name: string; phone: string }>(
+      `SELECT id, order_id, name, phone FROM orders WHERE id = ANY($1)`, [ids]
+    );
+    await pool.query(`DELETE FROM orders WHERE id = ANY($1)`, [ids]);
+    const now = new Date().toISOString();
+    await appendDeleteAudit(rows.map((o) => ({ entityType: "order" as const, entityId: o.id, entityRef: `${o.order_id} — ${o.name} (${o.phone})`, deletedBy: actor, deletedAt: now })));
+    return res.json({ deleted: rows.length });
+  } catch { return res.status(500).json({ error: "Bulk delete failed" }); }
+});
+
 /* ─── Shiprocket ─── */
 async function getShiprocketToken(): Promise<string> {
   const settings = await getSettings(["shiprocket_email", "shiprocket_password"]);
@@ -682,6 +734,35 @@ router.post("/admin/abandoned-carts/:id/recover", requireAdmin, async (req, res)
     req.log.error({ err }, "Failed to recover abandoned cart");
     res.status(500).json({ error: "Failed to recover cart" });
   }
+});
+
+/* ─── Abandoned Cart Delete (Super Admin only) ─── */
+router.delete("/admin/abandoned-carts/:id", requireSuperAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params["id"] ?? "0", 10);
+    if (!id) return res.status(400).json({ error: "Invalid id" });
+    const actor = ((req as unknown) as { admin: { username: string } }).admin.username;
+    const [cart] = await db.select().from(abandonedCartsTable).where(eq(abandonedCartsTable.id, id));
+    if (!cart) return res.status(404).json({ error: "Cart not found" });
+    await db.delete(abandonedCartsTable).where(eq(abandonedCartsTable.id, id));
+    await appendDeleteAudit([{ entityType: "abandoned_cart", entityId: id, entityRef: `${cart.name} (${cart.phone})`, deletedBy: actor, deletedAt: new Date().toISOString() }]);
+    return res.json({ ok: true });
+  } catch { return res.status(500).json({ error: "Delete failed" }); }
+});
+
+router.post("/admin/abandoned-carts/bulk-delete", requireSuperAdmin, async (req, res) => {
+  try {
+    const { ids } = req.body as { ids?: number[] };
+    if (!ids || !Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: "ids required" });
+    const actor = ((req as unknown) as { admin: { username: string } }).admin.username;
+    const { rows } = await pool.query<{ id: number; name: string; phone: string }>(
+      `SELECT id, name, phone FROM abandoned_carts WHERE id = ANY($1)`, [ids]
+    );
+    await pool.query(`DELETE FROM abandoned_carts WHERE id = ANY($1)`, [ids]);
+    const now = new Date().toISOString();
+    await appendDeleteAudit(rows.map((c) => ({ entityType: "abandoned_cart" as const, entityId: c.id, entityRef: `${c.name} (${c.phone})`, deletedBy: actor, deletedAt: now })));
+    return res.json({ deleted: rows.length });
+  } catch { return res.status(500).json({ error: "Bulk delete failed" }); }
 });
 
 export default router;

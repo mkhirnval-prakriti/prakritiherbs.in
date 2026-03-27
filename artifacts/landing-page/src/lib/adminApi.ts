@@ -308,6 +308,40 @@ export async function deleteDownload(id: number): Promise<void> {
   if (!res.ok) throw new Error("Delete failed");
 }
 
+export async function deleteOrder(id: number): Promise<void> {
+  const res = await authFetch(`/admin/orders/${id}`, { method: "DELETE" });
+  if (!res.ok) { const e = await res.json() as { error: string }; throw new Error(e.error); }
+}
+
+export async function bulkDeleteOrders(ids: number[]): Promise<{ deleted: number }> {
+  const res = await authFetch("/admin/orders/bulk-delete", { method: "POST", body: JSON.stringify({ ids }) });
+  if (!res.ok) { const e = await res.json() as { error: string }; throw new Error(e.error); }
+  return res.json();
+}
+
+export async function deleteAbandonedCartAdmin(id: number): Promise<void> {
+  const res = await authFetch(`/admin/abandoned-carts/${id}`, { method: "DELETE" });
+  if (!res.ok) { const e = await res.json() as { error: string }; throw new Error(e.error); }
+}
+
+export async function bulkDeleteAbandonedCarts(ids: number[]): Promise<{ deleted: number }> {
+  const res = await authFetch("/admin/abandoned-carts/bulk-delete", { method: "POST", body: JSON.stringify({ ids }) });
+  if (!res.ok) { const e = await res.json() as { error: string }; throw new Error(e.error); }
+  return res.json();
+}
+
+export interface DeleteAuditEntry {
+  id: string; entityType: "order" | "abandoned_cart";
+  entityId: number; entityRef: string; deletedBy: string; deletedAt: string;
+}
+
+export async function fetchDeleteAuditLog(): Promise<DeleteAuditEntry[]> {
+  const res = await authFetch("/admin/delete-audit-log");
+  if (!res.ok) return [];
+  const data = await res.json() as { entries: DeleteAuditEntry[] };
+  return data.entries;
+}
+
 export function parseDownloadFilters(dl: AdminDownload): ReportFilters | null {
   if (!dl.filters) return null;
   try {

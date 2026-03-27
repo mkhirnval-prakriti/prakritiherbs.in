@@ -4,6 +4,7 @@ import {
   exportSingleOrderToPDF, exportOrdersToPDF, exportOrdersToCSV, logDownload,
   bulkUpdateOrderStatus, shipViaShinprocket, updateIndiaPostTracking,
   sendWhatsAppToOrder, shipViaShadowfax, getShadowfaxLabel,
+  deleteOrder, bulkDeleteOrders, isSuperAdmin,
   type Order, type OrderStats,
 } from "@/lib/adminApi";
 import jsPDF from "jspdf";
@@ -11,7 +12,7 @@ import autoTable from "jspdf-autotable";
 import {
   Search, RefreshCw, Download, Filter, FileSpreadsheet, FileText,
   ChevronLeft, ChevronRight, Package, CheckSquare, Square, AlertCircle,
-  Printer, Truck, MessageSquare, Star, X, Zap, ExternalLink, Tag,
+  Printer, Truck, MessageSquare, Star, X, Zap, ExternalLink, Tag, Trash2,
 } from "lucide-react";
 
 const G = "#1B5E20";
@@ -375,6 +376,10 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkStatus, setBulkStatus] = useState("Confirmed");
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState<number | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const isSA = isSuperAdmin();
   const LIMIT = 25;
 
   const loadOrders = useCallback(async (pg = 1) => {
@@ -399,6 +404,28 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
     try { const r = await bulkUpdateOrderStatus([...selected], bulkStatus); alert(`✅ ${r.updated} orders updated`); void loadOrders(page); }
     catch { alert("Bulk update failed"); }
     finally { setBulkLoading(false); }
+  }
+
+  async function handleDeleteOrder(id: number) {
+    setDeleting(id);
+    try {
+      await deleteOrder(id);
+      setOrders((prev) => prev.filter((o) => o.id !== id));
+      setTotal((t) => t - 1);
+    } catch (e) { alert(e instanceof Error ? e.message : "Delete failed"); }
+    finally { setDeleting(null); setDeleteConfirm(null); }
+  }
+
+  async function handleBulkDelete() {
+    if (selected.size === 0) return;
+    if (!confirm(`⚠️ यह एक्शन पूरी तरह अपरिवर्सनीय है!\n\nक्या आप ${selected.size} ऑर्डर हमेशा के लिए delete करना चाहते हैं?\n\n"OK" दबाने से ये ऑर्डर और इनका सारा डेटा मिट जाएगा।`)) return;
+    setBulkDeleting(true);
+    try {
+      const r = await bulkDeleteOrders([...selected]);
+      alert(`✅ ${r.deleted} orders deleted`);
+      void loadOrders(page);
+    } catch (e) { alert(e instanceof Error ? e.message : "Bulk delete failed"); }
+    finally { setBulkDeleting(false); }
   }
 
   function handlePresetChange(preset: DatePreset) {
@@ -506,7 +533,7 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
         </div>
 
         {selected.size > 0 && (
-          <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-100">
+          <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-100 flex-wrap">
             <span className="text-xs font-semibold text-gray-600">{selected.size} selected</span>
             <select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)}
               className="px-2 py-1.5 border border-gray-300 rounded-lg text-xs bg-white focus:outline-none">
@@ -514,9 +541,15 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
             </select>
             <button onClick={handleBulkUpdate} disabled={bulkLoading}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white hover:brightness-110 disabled:opacity-60" style={{ background: G }}>
-              {bulkLoading ? <RefreshCw className="w-3 h-3 animate-spin" /> : <CheckSquare className="w-3.5 h-3.5" />} Apply
+              {bulkLoading ? <RefreshCw className="w-3 h-3 animate-spin" /> : <CheckSquare className="w-3.5 h-3.5" />} Apply Status
             </button>
-            <button onClick={() => setSelected(new Set())} className="text-xs text-gray-400 hover:text-gray-600">Clear</button>
+            {isSA && (
+              <button onClick={() => void handleBulkDelete()} disabled={bulkDeleting}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-60 transition-colors">
+                {bulkDeleting ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />} Bulk Delete
+              </button>
+            )}
+            <button onClick={() => setSelected(new Set())} className="text-xs text-gray-400 hover:text-gray-600">Deselect</button>
           </div>
         )}
         <p className="text-xs text-gray-400 mt-2">{orders.length} of {total} orders</p>
@@ -630,7 +663,26 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
                             ) : <span className="text-gray-300">—</span>}
                           </td>
                           <td className="px-3 py-3">
-                            <RowActions order={order} settings={settings} onShipped={() => void loadOrders(page)} />
+                            <div className="flex items-center gap-1">
+                              <RowActions order={order} settings={settings} onShipped={() => void loadOrders(page)} />
+                              {isSA && (
+                                deleteConfirm === order.id ? (
+                                  <div className="flex items-center gap-1 ml-1">
+                                    <button onClick={() => void handleDeleteOrder(order.id)} disabled={deleting === order.id}
+                                      className="px-2 py-1 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 whitespace-nowrap">
+                                      {deleting === order.id ? <RefreshCw className="w-3 h-3 animate-spin inline" /> : "✓ हाँ"}
+                                    </button>
+                                    <button onClick={() => setDeleteConfirm(null)} className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-lg hover:bg-gray-200">नहीं</button>
+                                  </div>
+                                ) : (
+                                  <button onClick={() => setDeleteConfirm(order.id)}
+                                    title="Delete this order"
+                                    className="ml-1 p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );

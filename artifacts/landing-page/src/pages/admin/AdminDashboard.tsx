@@ -10,8 +10,10 @@ import {
   recoverAbandonedCart, exportAbandonedCartsToXLSX, exportAbandonedCartsToCSV,
   deleteDownload, logDownload, parseDownloadFilters,
   exportOrdersToXLSX, exportOrdersToCSV,
+  deleteAbandonedCartAdmin, bulkDeleteAbandonedCarts, isSuperAdmin,
+  fetchDeleteAuditLog,
   type OrderStats, type AnalyticsData, type AdminDownload, type AbandonedCart,
-  type ReportFilters,
+  type ReportFilters, type DeleteAuditEntry,
   clearAdminToken, isAdminLoggedIn,
 } from "@/lib/adminApi";
 import { AdminOrders } from "./AdminOrders";
@@ -23,7 +25,7 @@ import {
   Search, LogOut, Menu, X, RefreshCw, Phone, MapPin, MessageSquare,
   TrendingUp, ShoppingCart, Eye, ArrowUpRight, Globe, FileSpreadsheet, FileText,
   ChevronLeft, ChevronRight, Filter, CheckCircle, Radio, Download, CheckCheck,
-  Trash2, PlusCircle, Users, CalendarRange,
+  Trash2, PlusCircle, Users, CalendarRange, CheckSquare, Square,
 } from "lucide-react";
 
 const G = "#1B5E20";
@@ -413,6 +415,11 @@ function AbandonedCartsPage() {
   const [datePreset, setDatePreset] = useState<CartDatePreset>("all");
   const [waLoading, setWaLoading] = useState<number | null>(null);
   const [recoverLoading, setRecoverLoading] = useState<number | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState<number | null>(null);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const isSA = isSuperAdmin();
   const LIMIT = 25;
 
   function handlePresetChange(preset: CartDatePreset) {
@@ -457,6 +464,32 @@ function AbandonedCartsPage() {
       else exportAbandonedCartsToCSV(r.carts, `abandoned_carts_${now}.csv`);
     } catch { alert("Export failed. Please try again."); }
     finally { setExporting(false); }
+  }
+
+  function toggleCartSelect(id: number) { setSelected((p) => { const s = new Set(p); s.has(id) ? s.delete(id) : s.add(id); return s; }); }
+  function toggleAllCarts() { setSelected((p) => p.size === carts.length ? new Set() : new Set(carts.map((c) => c.id))); }
+
+  async function handleDeleteCart(id: number) {
+    setDeleting(id);
+    try {
+      await deleteAbandonedCartAdmin(id);
+      setCarts((prev) => prev.filter((c) => c.id !== id));
+      setTotal((t) => t - 1);
+    } catch (e) { alert(e instanceof Error ? e.message : "Delete failed"); }
+    finally { setDeleting(null); setDeleteConfirm(null); }
+  }
+
+  async function handleBulkDeleteCarts() {
+    if (selected.size === 0) return;
+    if (!confirm(`⚠️ क्या आप ${selected.size} abandoned carts हमेशा के लिए delete करना चाहते हैं? यह action पूरी तरह अपरिवर्सनीय है।`)) return;
+    setBulkDeleting(true);
+    try {
+      const r = await bulkDeleteAbandonedCarts([...selected]);
+      alert(`✅ ${r.deleted} carts deleted`);
+      void load(page);
+      setSelected(new Set());
+    } catch (e) { alert(e instanceof Error ? e.message : "Bulk delete failed"); }
+    finally { setBulkDeleting(false); }
   }
 
   const totalPages = Math.ceil(total / LIMIT);
@@ -541,6 +574,17 @@ function AbandonedCartsPage() {
         <p className="text-xs text-gray-400">{total} cart{total !== 1 ? "s" : ""} found</p>
       </div>
 
+      {isSA && selected.size > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-center gap-3 flex-wrap">
+          <span className="text-xs font-semibold text-red-700">{selected.size} cart{selected.size !== 1 ? "s" : ""} selected</span>
+          <button onClick={() => void handleBulkDeleteCarts()} disabled={bulkDeleting}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-60 transition-colors">
+            {bulkDeleting ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />} Bulk Delete Selected
+          </button>
+          <button onClick={() => setSelected(new Set())} className="text-xs text-gray-400 hover:text-gray-600">Deselect</button>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {carts.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 text-gray-400">
@@ -553,6 +597,13 @@ function AbandonedCartsPage() {
             <table className="w-full text-sm">
               <thead style={{ background: "#f8f9fa" }}>
                 <tr>
+                  {isSA && (
+                    <th className="px-3 py-3">
+                      <button onClick={toggleAllCarts} className="text-gray-400 hover:text-gray-700">
+                        {selected.size === carts.length && carts.length > 0 ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                      </button>
+                    </th>
+                  )}
                   {["Date", "Name", "Mobile", "Address", "Pincode", "Recovery Status", "Actions"].map((h) => (
                     <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
@@ -560,7 +611,14 @@ function AbandonedCartsPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {carts.map((cart, idx) => (
-                  <tr key={cart.id} className={`hover:bg-orange-50/30 transition-colors ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}>
+                  <tr key={cart.id} className={`hover:bg-orange-50/30 transition-colors ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/30"} ${selected.has(cart.id) ? "bg-red-50/40" : ""}`}>
+                    {isSA && (
+                      <td className="px-3 py-3">
+                        <button onClick={() => toggleCartSelect(cart.id)} className="text-gray-300 hover:text-gray-600">
+                          {selected.has(cart.id) ? <CheckSquare className="w-4 h-4 text-red-500" /> : <Square className="w-4 h-4" />}
+                        </button>
+                      </td>
+                    )}
                     <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{fmtShort(cart.createdAt)}</td>
                     <td className="px-3 py-3">
                       <div className="font-medium text-gray-900">{cart.name}</div>
@@ -595,6 +653,22 @@ function AbandonedCartsPage() {
                             {recoverLoading === cart.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <CheckCheck className="w-3 h-3" />}
                             Recover
                           </button>
+                        )}
+                        {isSA && (
+                          deleteConfirm === cart.id ? (
+                            <div className="flex items-center gap-1">
+                              <button onClick={() => void handleDeleteCart(cart.id)} disabled={deleting === cart.id}
+                                className="px-2 py-1 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 whitespace-nowrap">
+                                {deleting === cart.id ? <RefreshCw className="w-3 h-3 animate-spin inline" /> : "✓ हाँ"}
+                              </button>
+                              <button onClick={() => setDeleteConfirm(null)} className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-lg hover:bg-gray-200">नहीं</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => setDeleteConfirm(cart.id)} title="Delete cart"
+                              className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )
                         )}
                       </div>
                     </td>
@@ -671,6 +745,10 @@ function DownloadsPage() {
   const [redownloading, setRedownloading] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [showAuditLog, setShowAuditLog] = useState(false);
+  const [auditLog, setAuditLog] = useState<DeleteAuditEntry[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const isSA = isSuperAdmin();
 
   /* modal filter state */
   const [datePreset, setDatePreset] = useState("all");
@@ -683,6 +761,18 @@ function DownloadsPage() {
 
   function loadHistory() { setLoading(true); fetchDownloads().then(setDownloads).finally(() => setLoading(false)); }
   useEffect(loadHistory, []);
+
+  async function loadAuditLog() {
+    setAuditLoading(true);
+    try { const r = await fetchDeleteAuditLog(); setAuditLog(r); }
+    catch { alert("Failed to load audit log"); }
+    finally { setAuditLoading(false); }
+  }
+
+  function toggleAuditLog() {
+    if (!showAuditLog && auditLog.length === 0) void loadAuditLog();
+    setShowAuditLog((v) => !v);
+  }
 
   function handlePreset(p: string) {
     setDatePreset(p);
@@ -864,6 +954,65 @@ function DownloadsPage() {
           </div>
         )}
       </div>
+
+      {/* Delete Audit Log — super admin only */}
+      {isSA && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <button onClick={toggleAuditLog}
+            className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors">
+            <div className="flex items-center gap-2">
+              <History className="w-4 h-4 text-gray-400" />
+              <span className="text-sm font-semibold text-gray-700">Delete Audit Log</span>
+              <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Super Admin Only</span>
+            </div>
+            <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${showAuditLog ? "rotate-90" : ""}`} />
+          </button>
+          {showAuditLog && (
+            <div className="border-t border-gray-100">
+              {auditLoading ? (
+                <div className="flex items-center justify-center py-8 text-gray-400 gap-2">
+                  <RefreshCw className="w-4 h-4 animate-spin" /> Loading audit log…
+                </div>
+              ) : auditLog.length === 0 ? (
+                <div className="text-center py-8 text-gray-400 text-sm">No deletions recorded yet.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead style={{ background: "#f8f9fa" }}>
+                      <tr>
+                        {["When", "Entity", "Ref / Name", "Deleted By"].map((h) => (
+                          <th key={h} className="px-4 py-2.5 text-left font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {auditLog.map((entry) => (
+                        <tr key={entry.id} className="hover:bg-red-50/30">
+                          <td className="px-4 py-2.5 text-gray-500 whitespace-nowrap">{toISTDate(entry.deletedAt)}</td>
+                          <td className="px-4 py-2.5">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${entry.entityType === "order" ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"}`}>
+                              {entry.entityType}
+                            </span>
+                            <span className="ml-1.5 text-gray-400 font-mono">#{entry.entityId}</span>
+                          </td>
+                          <td className="px-4 py-2.5 text-gray-700 font-medium">{entry.entityRef || "—"}</td>
+                          <td className="px-4 py-2.5 text-gray-500 font-mono">{entry.deletedBy}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="px-4 py-2 border-t border-gray-100 flex items-center justify-between">
+                    <p className="text-[11px] text-gray-400">Last 500 deletions — oldest entries auto-purged</p>
+                    <button onClick={() => void loadAuditLog()} className="text-[11px] text-gray-400 hover:text-gray-600 underline flex items-center gap-1">
+                      <RefreshCw className="w-3 h-3" /> Refresh
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Generate Report Modal */}
       {showModal && (
