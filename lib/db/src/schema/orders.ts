@@ -18,6 +18,7 @@ export const ordersTable = pgTable("orders", {
   paymentStatus: text("payment_status").default("pending"),
   trackingId: text("tracking_id"),
   courier: text("courier"),
+  visitorSource: text("visitor_source").default("Direct"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

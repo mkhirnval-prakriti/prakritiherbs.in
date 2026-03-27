@@ -1,8 +1,9 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, ShieldCheck, Truck, Package, X, Loader2 } from "lucide-react";
 import { cleanMobile, sendLeadToCRM, DuplicateOrderError, hasOrderedToday } from "@/lib/crm";
 import { fireLead, fireInitiateCheckout, markPaymentInitiated, generateEventId, getCookie } from "@/lib/pixel";
+import { getVisitorSource, startVisitorPing } from "@/lib/visitorTracking";
 
 function captureAbandonedCart(name: string, phone: string, address: string, pincode: string) {
   const cleanPhone = phone.replace(/\D/g, "").slice(-10);
@@ -111,6 +112,11 @@ export function OrderForm() {
   const [loading, setLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const abandonedFired = useRef(false);
+  const visitorSource = getVisitorSource();
+
+  useEffect(() => {
+    startVisitorPing();
+  }, []);
 
   function validate() {
     const e: Record<string, string> = {};
@@ -163,6 +169,7 @@ export function OrderForm() {
       body: JSON.stringify({
         name: name.trim(), phone: mobile, address: address.trim(),
         pincode: pincode.trim(), quantity: parseInt(quantity, 10), product: "KamaSutra Gold+", source: "COD",
+        visitorSource,
         // CAPI deduplication + matching fields (not validated by Zod, read separately in route)
         eventId: leadEventId,
         fbp: getCookie("_fbp"),

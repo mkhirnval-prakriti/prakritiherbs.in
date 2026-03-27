@@ -479,7 +479,7 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
                           {selected.size === orders.length ? <CheckSquare className="w-4 h-4 text-green-600" /> : <Square className="w-4 h-4" />}
                         </button>
                       </th>
-                      {["Date", "Name", "Mobile", "Address", "PIN", "Qty/Amt", "Payment", "Status", "Tracking", "Actions"].map((h) => (
+                      {["Date", "Name", "Mobile", "Address", "PIN", "Qty/Amt", "Channel", "Payment", "Status", "Tracking", "Actions"].map((h) => (
                         <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -512,6 +512,19 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
                           <td className="px-3 py-3 text-xs">
                             <div className="text-gray-700 font-medium">×{order.quantity}</div>
                             <div className="text-green-700 font-bold">₹{(999 * order.quantity).toLocaleString()}</div>
+                          </td>
+                          <td className="px-3 py-3 text-xs">
+                            {(() => {
+                              const src = order.visitorSource ?? "Direct";
+                              const cfg: Record<string, { bg: string; text: string }> = {
+                                Facebook: { bg: "bg-blue-50 border-blue-200", text: "text-blue-700" },
+                                Instagram: { bg: "bg-pink-50 border-pink-200", text: "text-pink-700" },
+                                WhatsApp: { bg: "bg-green-50 border-green-200", text: "text-green-700" },
+                                Direct: { bg: "bg-gray-50 border-gray-200", text: "text-gray-600" },
+                              };
+                              const c = cfg[src] ?? cfg["Direct"]!;
+                              return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${c.bg} ${c.text}`}>{src}</span>;
+                            })()}
                           </td>
                           <td className="px-3 py-3 text-xs">
                             <div className="font-medium text-gray-700">{order.paymentMethod ?? "COD"}</div>

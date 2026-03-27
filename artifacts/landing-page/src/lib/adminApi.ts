@@ -36,7 +36,7 @@ export interface Order {
   id: number; orderId: string; name: string; phone: string; address: string;
   pincode: string; quantity: number; product: string; source: string; status: string;
   paymentMethod: string | null; paymentId: string | null; paymentStatus: string | null;
-  trackingId: string | null; courier: string | null; createdAt: string; isRepeat?: boolean;
+  trackingId: string | null; courier: string | null; visitorSource: string | null; createdAt: string; isRepeat?: boolean;
 }
 
 export interface OrderStats {
@@ -225,11 +225,20 @@ function fmtISTForExport(dateStr: string): string {
   }).replace(/(\d{2})\/(\d{2})\/(\d{4}),?\s/, "$3-$2-$1 ");
 }
 
+export async function fetchLiveVisitors(): Promise<{ total: number; breakdown: Record<string, number> }> {
+  try {
+    const res = await authFetch("/admin/live-visitors");
+    if (!res.ok) return { total: 0, breakdown: {} };
+    return res.json() as Promise<{ total: number; breakdown: Record<string, number> }>;
+  } catch { return { total: 0, breakdown: {} }; }
+}
+
 export function exportOrdersToXLSX(orders: Order[], filename = "orders.xlsx"): void {
   const rows = orders.map((o) => ({
     "Order ID": o.orderId, "Date (IST)": fmtISTForExport(o.createdAt),
     "Name": o.name, "Mobile": o.phone, "Address": o.address, "Pincode": o.pincode,
-    "Qty": o.quantity, "Amount (₹)": 999 * o.quantity, "Source": o.source,
+    "Qty": o.quantity, "Amount (₹)": 999 * o.quantity,
+    "Channel": o.visitorSource ?? "Direct", "Source": o.source,
     "Payment": o.paymentMethod ?? "COD", "Pay Status": o.paymentStatus ?? "pending",
     "Status": o.status, "Tracking": o.trackingId ?? "", "Courier": o.courier ?? "",
     "Repeat": o.isRepeat ? "Yes" : "No",
@@ -253,11 +262,11 @@ export function exportOrdersToPDF(orders: Order[], filename = "orders.pdf"): voi
   doc.text(`Generated: ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`, 148, 16, { align: "center" });
   autoTable(doc, {
     startY: 22,
-    head: [["Date (IST)", "Order ID", "Name", "Mobile", "Address", "Pincode", "Qty", "Amount", "Source", "Payment", "Status", "Tracking"]],
+    head: [["Date (IST)", "Order ID", "Name", "Mobile", "Address", "Pincode", "Qty", "Amount", "Channel", "Source", "Payment", "Status", "Tracking"]],
     body: orders.map((o) => [
       fmtISTForExport(o.createdAt), o.orderId, o.name, o.phone,
       o.address.substring(0, 30), o.pincode, o.quantity,
-      `₹${(999 * o.quantity).toLocaleString()}`, o.source, o.paymentMethod ?? "COD", o.status, o.trackingId ?? "",
+      `₹${(999 * o.quantity).toLocaleString()}`, o.visitorSource ?? "Direct", o.source, o.paymentMethod ?? "COD", o.status, o.trackingId ?? "",
     ]),
     headStyles: { fillColor: [27, 94, 32], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 7 },
     styles: { fontSize: 7, cellPadding: 2 },
@@ -271,10 +280,10 @@ export function exportSingleOrderToPDF(order: Order): void {
 }
 
 export function exportOrdersToCSV(orders: Order[], filename = "orders.csv"): void {
-  const headers = ["Order ID", "Date (IST)", "Name", "Mobile", "Address", "Pincode", "Qty", "Amount (₹)", "Source", "Payment", "Pay Status", "Status", "Tracking", "Courier", "Repeat"];
+  const headers = ["Order ID", "Date (IST)", "Name", "Mobile", "Address", "Pincode", "Qty", "Amount (₹)", "Channel", "Source", "Payment", "Pay Status", "Status", "Tracking", "Courier", "Repeat"];
   const rows = orders.map((o) => [
     o.orderId, fmtISTForExport(o.createdAt), `"${o.name}"`, o.phone, `"${o.address}"`,
-    o.pincode, o.quantity, 999 * o.quantity, o.source, o.paymentMethod ?? "COD",
+    o.pincode, o.quantity, 999 * o.quantity, o.visitorSource ?? "Direct", o.source, o.paymentMethod ?? "COD",
     o.paymentStatus ?? "pending", o.status, o.trackingId ?? "", o.courier ?? "", o.isRepeat ? "Yes" : "No",
   ]);
   const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");

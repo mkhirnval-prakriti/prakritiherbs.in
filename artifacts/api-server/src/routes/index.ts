@@ -7,10 +7,12 @@ import analyticsRouter from "./analytics";
 import reviewsRouter from "./reviews";
 import settingsRouter from "./settings";
 import paymentsRouter from "./payments";
+import liveRouter from "./live";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(liveRouter);
 router.use(ordersRouter);
 router.use(crmRouter);
 router.use(adminRouter);

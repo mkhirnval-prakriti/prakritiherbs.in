@@ -6,7 +6,7 @@ import {
 } from "recharts";
 import {
   fetchOrders, fetchAnalytics, fetchDownloads, fetchAbandonedCarts, fetchSettings,
-  updateAbandonedCartStatus, sendWhatsAppToCart,
+  updateAbandonedCartStatus, sendWhatsAppToCart, fetchLiveVisitors,
   type OrderStats, type AnalyticsData, type AdminDownload, type AbandonedCart,
   clearAdminToken, isAdminLoggedIn,
 } from "@/lib/adminApi";
@@ -18,7 +18,7 @@ import {
   Home, Package, AlertTriangle, BarChart3, Star, Settings, History,
   Search, LogOut, Menu, X, RefreshCw, Phone, MapPin, MessageSquare,
   TrendingUp, ShoppingCart, Eye, ArrowUpRight, Globe, FileSpreadsheet, FileText,
-  ChevronLeft, ChevronRight, Filter, CheckCircle,
+  ChevronLeft, ChevronRight, Filter, CheckCircle, Radio,
 } from "lucide-react";
 
 const G = "#1B5E20";
@@ -131,6 +131,99 @@ function Sidebar({ page, setPage, sidebarOpen, setSidebarOpen, adminUser, onLogo
   );
 }
 
+const SOURCE_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
+  Facebook:  { bg: "bg-blue-50",   text: "text-blue-700",   dot: "bg-blue-500" },
+  Instagram: { bg: "bg-pink-50",   text: "text-pink-700",   dot: "bg-pink-500" },
+  WhatsApp:  { bg: "bg-green-50",  text: "text-green-700",  dot: "bg-green-500" },
+  Direct:    { bg: "bg-gray-50",   text: "text-gray-600",   dot: "bg-gray-400" },
+};
+
+function LiveVisitorsWidget() {
+  const [data, setData] = useState<{ total: number; breakdown: Record<string, number> }>({ total: 0, breakdown: {} });
+  const [updated, setUpdated] = useState<Date | null>(null);
+
+  const refresh = useCallback(async () => {
+    const result = await fetchLiveVisitors();
+    setData(result);
+    setUpdated(new Date());
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+    const iv = setInterval(() => void refresh(), 15_000);
+    return () => clearInterval(iv);
+  }, [refresh]);
+
+  const sources = Object.entries(data.breakdown).sort((a, b) => b[1] - a[1]);
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Radio className="w-4 h-4 text-green-600" />
+            {data.total > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full animate-ping" />
+            )}
+          </div>
+          <h3 className="text-sm font-bold text-gray-700">Live on Website</h3>
+        </div>
+        <button onClick={() => void refresh()} title="Refresh"
+          className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+          <RefreshCw className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      <div className="flex items-baseline gap-2 mb-4">
+        <span className="text-5xl font-black" style={{ color: data.total > 0 ? G : "#9CA3AF" }}>
+          {data.total}
+        </span>
+        <div>
+          <p className="text-sm font-semibold text-gray-500">visitor{data.total !== 1 ? "s" : ""}</p>
+          <p className="text-xs text-gray-400">right now</p>
+        </div>
+        {data.total > 0 && (
+          <div className="ml-auto flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            <span className="text-xs font-semibold text-green-600">LIVE</span>
+          </div>
+        )}
+      </div>
+
+      {sources.length > 0 ? (
+        <div className="space-y-2">
+          {sources.map(([src, count]) => {
+            const colors = SOURCE_COLORS[src] ?? SOURCE_COLORS["Direct"]!;
+            const pct = data.total > 0 ? Math.round((count / data.total) * 100) : 0;
+            return (
+              <div key={src} className="flex items-center gap-2">
+                <div className={`flex items-center gap-1.5 flex-1 min-w-0 px-2.5 py-1.5 rounded-lg ${colors.bg}`}>
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${colors.dot}`} />
+                  <span className={`text-xs font-semibold ${colors.text} flex-1`}>{src}</span>
+                  <span className={`text-xs font-bold ${colors.text}`}>{count}</span>
+                  <span className={`text-xs ${colors.text} opacity-60`}>{pct}%</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="text-center py-3">
+          <Globe className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+          <p className="text-xs text-gray-400">No active visitors right now</p>
+          <p className="text-xs text-gray-300 mt-0.5">Updates every 15 seconds</p>
+        </div>
+      )}
+
+      {updated && (
+        <p className="text-xs text-gray-300 mt-3 text-right">
+          Updated {updated.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /* ─── Home Page ─── */
 function HomePage({ stats, analytics, loading }: { stats: OrderStats | null; analytics: AnalyticsData | null; loading: boolean }) {
   return (
@@ -151,6 +244,31 @@ function HomePage({ stats, analytics, loading }: { stats: OrderStats | null; ana
           <StatCard label="Cancelled" value={stats.cancelled} color="bg-red-50 border-red-200 text-red-800" />
         </div>
       )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-1">
+          <LiveVisitorsWidget />
+        </div>
+        <div className="lg:col-span-2 grid grid-cols-3 gap-3">
+          {stats && <>
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200 p-4 flex flex-col gap-1">
+              <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Revenue Today</p>
+              <p className="text-2xl font-black text-blue-800">₹{((stats.today ?? 0) * 999).toLocaleString()}</p>
+              <p className="text-xs text-blue-500">{stats.today} orders</p>
+            </div>
+            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl border border-green-200 p-4 flex flex-col gap-1">
+              <p className="text-xs font-semibold text-green-600 uppercase tracking-wider">Total Revenue</p>
+              <p className="text-2xl font-black text-green-800">₹{((stats.total ?? 0) * 999).toLocaleString()}</p>
+              <p className="text-xs text-green-500">{stats.total} orders</p>
+            </div>
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl border border-purple-200 p-4 flex flex-col gap-1">
+              <p className="text-xs font-semibold text-purple-600 uppercase tracking-wider">Delivered</p>
+              <p className="text-2xl font-black text-purple-800">₹{((stats.delivered ?? 0) * 999).toLocaleString()}</p>
+              <p className="text-xs text-purple-500">{stats.delivered} orders</p>
+            </div>
+          </>}
+        </div>
+      </div>
 
       {analytics && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

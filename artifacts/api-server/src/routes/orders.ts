@@ -17,12 +17,14 @@ router.post("/orders", async (req, res) => {
   const { name, phone, address, pincode, quantity, product } = parseResult.data;
   const body = req.body as {
     source?: string;
+    visitorSource?: string;
     eventId?: string;
     fbp?: string;
     fbc?: string;
     userAgent?: string;
   };
   const source = body.source ?? "COD";
+  const visitorSource = body.visitorSource ?? "Direct";
   const orderId = `ORD-${nanoid(8).toUpperCase()}`;
 
   try {
@@ -37,6 +39,7 @@ router.post("/orders", async (req, res) => {
         quantity,
         product,
         source,
+        visitorSource,
         status: "New",
       })
       .returning();
