@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { fetchSettings, saveSettings } from "@/lib/adminApi";
-import { Save, Truck, MessageSquare, CreditCard, Building2, Mail, Clock, ExternalLink, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Zap } from "lucide-react";
+import { fetchSettings, saveSettings, fetchStaff, createStaff, deleteStaff, isSuperAdmin, type StaffUser } from "@/lib/adminApi";
+import { Save, Truck, MessageSquare, CreditCard, Building2, Mail, Clock, ExternalLink, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Zap, Users, UserPlus, Trash2, ShieldCheck, Eye } from "lucide-react";
 
 const G = "#1B5E20";
 
@@ -48,11 +48,120 @@ function TextareaField({ label, name, value, onChange, placeholder, rows = 3 }: 
   );
 }
 
+function StaffManagement() {
+  const [staff, setStaff] = useState<StaffUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newUsername, setNewUsername] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newRole, setNewRole] = useState<"order_manager" | "view_only">("order_manager");
+  const [adding, setAdding] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+
+  useEffect(() => {
+    fetchStaff().then(setStaff).finally(() => setLoading(false));
+  }, []);
+
+  async function handleAdd() {
+    if (!newUsername.trim() || !newPassword.trim()) { alert("Username and password are required"); return; }
+    if (newPassword.length < 6) { alert("Password must be at least 6 characters"); return; }
+    setAdding(true);
+    try {
+      const created = await createStaff(newUsername.trim(), newPassword, newRole);
+      setStaff((p) => [...p, created]);
+      setNewUsername(""); setNewPassword(""); setShowForm(false);
+    } catch (err) { alert(err instanceof Error ? err.message : "Failed to create staff user"); }
+    finally { setAdding(false); }
+  }
+
+  async function handleDelete(id: string, username: string) {
+    if (!confirm(`Remove staff user "${username}"?`)) return;
+    try { await deleteStaff(id); setStaff((p) => p.filter((u) => u.id !== id)); }
+    catch (err) { alert(err instanceof Error ? err.message : "Failed to remove user"); }
+  }
+
+  if (loading) return <div className="text-xs text-gray-400 py-4 text-center animate-pulse">Loading staff...</div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
+        Staff users can log in to the admin panel with limited access. <strong>Order Manager</strong> can view and update orders. <strong>View Only</strong> can only see orders — no changes allowed.
+      </div>
+
+      {staff.length === 0 ? (
+        <p className="text-xs text-gray-400 text-center py-4">No staff users yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {staff.map((u) => (
+            <div key={u.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3 border border-gray-200">
+              <div className="flex items-center gap-3">
+                {u.role === "order_manager"
+                  ? <ShieldCheck className="w-4 h-4 text-green-600" />
+                  : <Eye className="w-4 h-4 text-blue-500" />}
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">{u.username}</p>
+                  <p className="text-xs text-gray-500 capitalize">{u.role === "order_manager" ? "Order Manager" : "View Only"}</p>
+                </div>
+              </div>
+              <button onClick={() => handleDelete(u.id, u.username)}
+                className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showForm ? (
+        <div className="border border-gray-200 rounded-xl p-4 space-y-3 bg-gray-50">
+          <p className="text-sm font-semibold text-gray-700">Add New Staff User</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-gray-600 mb-1 block">Username</label>
+              <input value={newUsername} onChange={(e) => setNewUsername(e.target.value)} placeholder="e.g. rahul_ops"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-600 mb-1 block">Password (min 6 chars)</label>
+              <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="••••••••"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-600 mb-1 block">Role</label>
+              <select value={newRole} onChange={(e) => setNewRole(e.target.value as "order_manager" | "view_only")}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30">
+                <option value="order_manager">Order Manager (full order access)</option>
+                <option value="view_only">View Only (read-only)</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleAdd} disabled={adding}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
+              style={{ background: G }}>
+              <UserPlus className="w-3.5 h-3.5" /> {adding ? "Adding..." : "Add User"}
+            </button>
+            <button onClick={() => setShowForm(false)}
+              className="px-4 py-2 rounded-lg text-sm font-semibold text-gray-600 bg-gray-200 hover:bg-gray-300">
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setShowForm(true)}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border-2 border-dashed border-gray-300 text-gray-500 hover:border-green-500 hover:text-green-700 transition-colors w-full justify-center">
+          <UserPlus className="w-4 h-4" /> Add Staff User
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function AdminSettings() {
   const [values, setValues] = useState<Record<string, string>>({});
   const [exists, setExists] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
+  const superAdmin = isSuperAdmin();
 
   useEffect(() => {
     fetchSettings().then((s) => { setValues(s.settings); setExists(s.exists); }).finally(() => setLoading(false));
@@ -246,6 +355,12 @@ export function AdminSettings() {
           </div>
         </div>
       </Section>
+
+      {superAdmin && (
+        <Section title="Staff Access Management" icon={<Users className="w-4 h-4" />} defaultOpen={false}>
+          <StaffManagement />
+        </Section>
+      )}
     </div>
   );
 }

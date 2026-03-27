@@ -1,22 +1,97 @@
 import { Router, type IRouter } from "express";
-import { db, ordersTable, adminDownloadsTable, abandonedCartsTable } from "@workspace/db";
+import { db, ordersTable, adminDownloadsTable, abandonedCartsTable, appSettingsTable } from "@workspace/db";
 import { eq, desc, like, and, gte, lte, sql, or, inArray } from "drizzle-orm";
-import { requireAdmin, signAdminToken } from "../middlewares/requireAdmin";
-import { getSettings } from "./settings";
+import { requireAdmin, requireSuperAdmin, signAdminToken, type AdminRole } from "../middlewares/requireAdmin";
+import { getSettings, saveSettingsBatch } from "./settings";
+import crypto from "crypto";
 
 const router: IRouter = Router();
 
 const ADMIN_USERNAME = process.env["ADMIN_USERNAME"] ?? "admin";
 const ADMIN_PASSWORD = process.env["ADMIN_PASSWORD"] ?? "Admin@2026";
 
+interface StaffUser { id: string; username: string; passwordHash: string; role: AdminRole; createdAt: string; }
+
+function hashPassword(pw: string): string {
+  return crypto.createHash("sha256").update(pw + "prakriti_salt_2026").digest("hex");
+}
+
+async function getStaffUsers(): Promise<StaffUser[]> {
+  try {
+    const [row] = await db.select().from(appSettingsTable).where(eq(appSettingsTable.key, "staff_users"));
+    if (!row) return [];
+    return JSON.parse(row.value) as StaffUser[];
+  } catch { return []; }
+}
+
+async function saveStaffUsers(users: StaffUser[]): Promise<void> {
+  await saveSettingsBatch({ staff_users: JSON.stringify(users) });
+}
+
 /* ─── Auth ─── */
-router.post("/admin/login", (req, res) => {
+router.post("/admin/login", async (req, res) => {
   const { username, password } = req.body as { username?: string; password?: string };
+
+  /* Super admin check (env vars) */
   if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-    res.json({ token: signAdminToken(username), username });
-  } else {
-    res.status(401).json({ error: "Invalid credentials" });
+    res.json({ token: signAdminToken(username, "super_admin"), username, role: "super_admin" });
+    return;
   }
+
+  /* Staff user check (stored in app_settings) */
+  try {
+    const staffUsers = await getStaffUsers();
+    const hash = hashPassword(password ?? "");
+    const found = staffUsers.find((u) => u.username === username && u.passwordHash === hash);
+    if (found) {
+      res.json({ token: signAdminToken(found.username, found.role), username: found.username, role: found.role });
+      return;
+    }
+  } catch { /* ignore lookup errors */ }
+
+  res.status(401).json({ error: "Invalid credentials" });
+});
+
+/* ─── Staff Management ─── */
+router.get("/admin/staff", requireSuperAdmin, async (_req, res) => {
+  try {
+    const users = await getStaffUsers();
+    res.json({ staff: users.map(({ id, username, role, createdAt }) => ({ id, username, role, createdAt })) });
+  } catch { res.status(500).json({ error: "Failed to load staff" }); }
+});
+
+router.post("/admin/staff", requireSuperAdmin, async (req, res) => {
+  try {
+    const { username, password, role } = req.body as { username?: string; password?: string; role?: string };
+    if (!username || !password || !role) { res.status(400).json({ error: "username, password and role are required" }); return; }
+    if (!["order_manager", "view_only"].includes(role)) { res.status(400).json({ error: "role must be order_manager or view_only" }); return; }
+    if (username === ADMIN_USERNAME) { res.status(400).json({ error: "Username already taken" }); return; }
+
+    const users = await getStaffUsers();
+    if (users.find((u) => u.username === username)) { res.status(400).json({ error: "Username already taken" }); return; }
+
+    const newUser: StaffUser = {
+      id: crypto.randomUUID(),
+      username,
+      passwordHash: hashPassword(password),
+      role: role as AdminRole,
+      createdAt: new Date().toISOString(),
+    };
+    users.push(newUser);
+    await saveStaffUsers(users);
+    res.status(201).json({ staff: { id: newUser.id, username: newUser.username, role: newUser.role, createdAt: newUser.createdAt } });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Failed to create staff user" }); }
+});
+
+router.delete("/admin/staff/:id", requireSuperAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const users = await getStaffUsers();
+    const filtered = users.filter((u) => u.id !== id);
+    if (filtered.length === users.length) { res.status(404).json({ error: "Staff user not found" }); return; }
+    await saveStaffUsers(filtered);
+    res.json({ ok: true });
+  } catch { res.status(500).json({ error: "Failed to delete staff user" }); }
 });
 
 /* ─── Orders ─── */

@@ -20,6 +20,10 @@ router.post("/analytics/pageview", async (req, res) => {
   }
 });
 
+async function safeQuery<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  try { return await fn(); } catch { return fallback; }
+}
+
 router.get("/admin/analytics", requireAdmin, async (req, res) => {
   try {
     const now = new Date();
@@ -28,24 +32,26 @@ router.get("/admin/analytics", requireAdmin, async (req, res) => {
     const last7Start = new Date(todayStart); last7Start.setDate(last7Start.getDate() - 6);
     const last30Start = new Date(todayStart); last30Start.setDate(last30Start.getDate() - 29);
 
+    const emptyRows = { rows: [] as Record<string, unknown>[] };
+
     const [
       ordersByDay, ordersByHour, ordersBySource,
       visitorStats, conversionData, topCitiesRevenue,
       abandonedStats, repeatCustomers, paymentStats,
     ] = await Promise.all([
-      db.execute(sql`
+      safeQuery(() => db.execute(sql`
         SELECT TO_CHAR(created_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') as date, COUNT(*) as count
         FROM orders WHERE created_at >= ${last30Start}
         GROUP BY date ORDER BY date ASC
-      `),
-      db.execute(sql`
+      `), emptyRows),
+      safeQuery(() => db.execute(sql`
         SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE 'Asia/Kolkata')::int as hour, COUNT(*) as count
         FROM orders GROUP BY hour ORDER BY hour ASC
-      `),
-      db.execute(sql`
+      `), emptyRows),
+      safeQuery(() => db.execute(sql`
         SELECT source, COUNT(*) as count FROM orders GROUP BY source ORDER BY count DESC
-      `),
-      db.execute(sql`
+      `), emptyRows),
+      safeQuery(() => db.execute(sql`
         SELECT
           COUNT(*) FILTER (WHERE created_at >= ${todayStart}) as today,
           COUNT(*) FILTER (WHERE created_at >= ${yesterdayStart} AND created_at < ${todayStart}) as yesterday,
@@ -53,8 +59,8 @@ router.get("/admin/analytics", requireAdmin, async (req, res) => {
           COUNT(*) FILTER (WHERE created_at >= ${last30Start}) as last30,
           COUNT(*) as total
         FROM page_views
-      `),
-      db.execute(sql`
+      `), { rows: [{ today: 0, yesterday: 0, last7: 0, last30: 0, total: 0 }] }),
+      safeQuery(() => db.execute(sql`
         SELECT
           (SELECT COUNT(*) FROM page_views WHERE created_at >= ${last30Start}) as visitors_30d,
           (SELECT COUNT(*) FROM orders WHERE created_at >= ${last30Start}) as orders_30d,
@@ -62,8 +68,8 @@ router.get("/admin/analytics", requireAdmin, async (req, res) => {
           (SELECT COUNT(*) FROM orders WHERE created_at >= ${last7Start}) as orders_7d,
           (SELECT COUNT(*) FROM page_views WHERE created_at >= ${todayStart}) as visitors_today,
           (SELECT COUNT(*) FROM orders WHERE created_at >= ${todayStart}) as orders_today
-      `),
-      db.execute(sql`
+      `), { rows: [{ visitors_30d: 0, orders_30d: 0, visitors_7d: 0, orders_7d: 0, visitors_today: 0, orders_today: 0 }] }),
+      safeQuery(() => db.execute(sql`
         SELECT
           TRIM(SPLIT_PART(REGEXP_REPLACE(address, '\\s+', ' ', 'g'), ',',
             ARRAY_LENGTH(STRING_TO_ARRAY(address, ','), 1) - 1)) as city,
@@ -74,28 +80,28 @@ router.get("/admin/analytics", requireAdmin, async (req, res) => {
         GROUP BY city
         HAVING TRIM(SPLIT_PART(REGEXP_REPLACE(address, '\\s+', ' ', 'g'), ',', ARRAY_LENGTH(STRING_TO_ARRAY(address, ','), 1) - 1)) != ''
         ORDER BY count DESC LIMIT 10
-      `),
-      db.execute(sql`
+      `), emptyRows),
+      safeQuery(() => db.execute(sql`
         SELECT
           COUNT(*) as total,
           COUNT(*) FILTER (WHERE recovery_status = 'New') as new_count,
           COUNT(*) FILTER (WHERE recovery_status = 'Called') as called,
           COUNT(*) FILTER (WHERE recovery_status = 'Recovered') as recovered
         FROM abandoned_carts
-      `),
-      db.execute(sql`
+      `), { rows: [{ total: 0, new_count: 0, called: 0, recovered: 0 }] }),
+      safeQuery(() => db.execute(sql`
         SELECT COUNT(DISTINCT phone) as repeat_count
         FROM orders
         WHERE phone IN (SELECT phone FROM orders GROUP BY phone HAVING COUNT(*) > 1)
-      `),
-      db.execute(sql`
+      `), { rows: [{ repeat_count: 0 }] }),
+      safeQuery(() => db.execute(sql`
         SELECT
           COUNT(*) FILTER (WHERE payment_method = 'COD') as cod,
           COUNT(*) FILTER (WHERE payment_method = 'Razorpay') as razorpay,
           COUNT(*) FILTER (WHERE payment_method = 'Cashfree') as cashfree,
           COUNT(*) FILTER (WHERE payment_status = 'success') as paid
         FROM orders
-      `),
+      `), { rows: [{ cod: 0, razorpay: 0, cashfree: 0, paid: 0 }] }),
     ]);
 
     const visRow = (visitorStats.rows[0] ?? {}) as Record<string, unknown>;

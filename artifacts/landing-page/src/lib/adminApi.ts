@@ -7,12 +7,21 @@ const TOKEN_KEY = "admin_token";
 
 export function getAdminToken(): string | null { return sessionStorage.getItem(TOKEN_KEY); }
 export function setAdminToken(token: string): void { sessionStorage.setItem(TOKEN_KEY, token); }
-export function clearAdminToken(): void { sessionStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem("admin_user"); }
+export function clearAdminToken(): void { sessionStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem("admin_user"); sessionStorage.removeItem("admin_role"); }
 export function isAdminLoggedIn(): boolean {
   const token = getAdminToken();
   if (!token) return false;
   try { const p = JSON.parse(atob(token.split(".")[1])); return p.exp * 1000 > Date.now(); } catch { return false; }
 }
+export function getAdminRole(): string {
+  try {
+    const token = getAdminToken();
+    if (!token) return "view_only";
+    const p = JSON.parse(atob(token.split(".")[1]));
+    return (p.role as string) ?? "view_only";
+  } catch { return "view_only"; }
+}
+export function isSuperAdmin(): boolean { return getAdminRole() === "super_admin"; }
 
 async function authFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const token = getAdminToken();
@@ -291,4 +300,26 @@ export function exportOrdersToCSV(orders: Order[], filename = "orders.csv"): voi
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
+}
+
+/* ─── Staff Management ─── */
+export interface StaffUser { id: string; username: string; role: "order_manager" | "view_only"; createdAt: string; }
+
+export async function fetchStaff(): Promise<StaffUser[]> {
+  const res = await authFetch("/admin/staff");
+  if (!res.ok) return [];
+  const data = await res.json() as { staff: StaffUser[] };
+  return data.staff;
+}
+
+export async function createStaff(username: string, password: string, role: "order_manager" | "view_only"): Promise<StaffUser> {
+  const res = await authFetch("/admin/staff", { method: "POST", body: JSON.stringify({ username, password, role }) });
+  const data = await res.json() as { staff?: StaffUser; error?: string };
+  if (!res.ok) throw new Error(data.error ?? "Failed to create staff user");
+  return data.staff!;
+}
+
+export async function deleteStaff(id: string): Promise<void> {
+  const res = await authFetch(`/admin/staff/${id}`, { method: "DELETE" });
+  if (!res.ok) { const d = await res.json() as { error?: string }; throw new Error(d.error ?? "Delete failed"); }
 }

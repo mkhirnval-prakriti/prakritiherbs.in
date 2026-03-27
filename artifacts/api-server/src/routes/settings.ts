@@ -88,4 +88,12 @@ export async function getSettings(keys: string[]): Promise<Record<string, string
   }
 }
 
+/** Save an arbitrary key/value pair to app_settings (no ALLOWED_KEYS check) */
+export async function saveSettingsBatch(updates: Record<string, string>): Promise<void> {
+  for (const [key, value] of Object.entries(updates)) {
+    await db.insert(appSettingsTable).values({ key, value })
+      .onConflictDoUpdate({ target: appSettingsTable.key, set: { value, updatedAt: new Date() } });
+  }
+}
+
 export default router;

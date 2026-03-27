@@ -111,6 +111,7 @@ export function OrderForm() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
   const abandonedFired = useRef(false);
   const visitorSource = getVisitorSource();
 
@@ -130,67 +131,72 @@ export function OrderForm() {
 
   async function handleCODSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setOrderError(null);
     if (!validate()) return;
 
     const mobile = cleanMobile(phone);
     if (!mobile) {
-      alert("Please enter a valid 10-digit mobile number.");
+      setOrderError("Please enter a valid 10-digit mobile number.");
       return;
     }
 
-    // Client-side duplicate guard (non-blocking check via localStorage)
+    // Client-side duplicate guard — show a clear English message
     if (hasOrderedToday(mobile)) {
-      alert("आप आज इस नंबर से ऑर्डर कर चुके हैं। कृपया कल प्रयास करें।");
+      setOrderError("This mobile number has already placed an order today. Please try again tomorrow or call us at +91 89681 22246.");
       return;
     }
 
     setLoading(true);
 
-    // Fire CRM in background — never block the order confirmation
-    sendLeadToCRM({
-      name:    name.trim(),
-      address: address.trim(),
-      pincode: pincode.trim(),
-      Number:  mobile,
-    }).then(() => {
-      console.log("[COD] CRM lead saved successfully.");
-    }).catch((err) => {
-      if (err instanceof DuplicateOrderError) return;
-      console.error("[COD] CRM failed (non-blocking):", err instanceof Error ? err.message : err);
-    });
+    try {
+      // Fire CRM in background — never block the order confirmation
+      sendLeadToCRM({
+        name:    name.trim(),
+        address: address.trim(),
+        pincode: pincode.trim(),
+        Number:  mobile,
+      }).then(() => {
+        console.log("[COD] CRM lead saved successfully.");
+      }).catch((err) => {
+        if (err instanceof DuplicateOrderError) return;
+        console.error("[COD] CRM failed (non-blocking):", err instanceof Error ? err.message : err);
+      });
 
-    // Generate unique event ID for client+server deduplication with Meta CAPI
-    const leadEventId = generateEventId();
+      // Generate unique event ID for client+server deduplication with Meta CAPI
+      const leadEventId = generateEventId();
 
-    // Save to local DB + trigger server-side CAPI Lead event (background, non-blocking)
-    fetch("/api/orders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: name.trim(), phone: mobile, address: address.trim(),
-        pincode: pincode.trim(), quantity: parseInt(quantity, 10), product: "KamaSutra Gold+", source: "COD",
-        visitorSource,
-        // CAPI deduplication + matching fields (not validated by Zod, read separately in route)
-        eventId: leadEventId,
-        fbp: getCookie("_fbp"),
-        fbc: getCookie("_fbc"),
-        userAgent: navigator.userAgent,
-        sourceUrl: window.location.href,
-      }),
-    }).catch(() => {});
+      // Save to local DB + trigger server-side CAPI Lead event (background, non-blocking)
+      fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(), phone: mobile, address: address.trim(),
+          pincode: pincode.trim(), quantity: parseInt(quantity, 10), product: "KamaSutra Gold+", source: "COD",
+          visitorSource: visitorSource ?? "Direct",
+          eventId: leadEventId,
+          fbp: getCookie("_fbp"),
+          fbc: getCookie("_fbc"),
+          userAgent: navigator.userAgent,
+        }),
+      }).catch(() => {});
 
-    // Always confirm order via Google Sheets + WhatsApp
-    sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "COD");
-    const msg = encodeURIComponent(
-      `*New COD Order:*\n*Product:* KamaSutra Gold+\n*Name:* ${name}\n*Mobile:* ${mobile}\n*Address:* ${address}\n*Pincode:* ${pincode}\n*Qty:* ${quantity} bottle(s)`
-    );
-    window.open(`https://wa.me/918968122246?text=${msg}`, "_blank");
+      // Always confirm order via Google Sheets + WhatsApp
+      sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "COD");
+      const msg = encodeURIComponent(
+        `*New COD Order:*\n*Product:* KamaSutra Gold+\n*Name:* ${name}\n*Mobile:* ${mobile}\n*Address:* ${address}\n*Pincode:* ${pincode}\n*Qty:* ${quantity} bottle(s)`
+      );
+      try { window.open(`https://wa.me/918968122246?text=${msg}`, "_blank"); } catch { /* popup blocked is fine */ }
 
-    // Fire client-side Meta Pixel Lead event with same eventId for deduplication
-    fireLead({ name: name.trim(), phone: mobile, eventId: leadEventId });
+      // Fire client-side Meta Pixel Lead event with same eventId for deduplication
+      fireLead({ name: name.trim(), phone: mobile, eventId: leadEventId });
 
-    setLoading(false);
-    setShowSuccess(true);
+      setLoading(false);
+      setShowSuccess(true);
+    } catch (err) {
+      console.error("[COD] Order submit error:", err);
+      setLoading(false);
+      setOrderError("Something went wrong. Please try again or call us at +91 89681 22246.");
+    }
   }
 
   function handlePayNowClick(e: React.MouseEvent<HTMLButtonElement>) {
@@ -399,6 +405,13 @@ export function OrderForm() {
                     </select>
                   </div>
                 </div>
+
+                {orderError && (
+                  <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+                    <span className="text-red-500 mt-0.5">⚠️</span>
+                    <span>{orderError}</span>
+                  </div>
+                )}
 
                 <button
                   type="submit"
