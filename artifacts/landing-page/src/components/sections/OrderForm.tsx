@@ -119,35 +119,39 @@ export function OrderForm() {
       return;
     }
 
-    setLoading(true);
-    try {
-      await sendLeadToCRM({
-        name:    name.trim(),
-        address: address.trim(),
-        pincode: pincode.trim(),
-        Number:  mobile,
-      });
-
-      sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "COD");
-      const msg = encodeURIComponent(
-        `*New COD Order:*\n*Product:* KamaSutra Gold+\n*Name:* ${name}\n*Mobile:* ${mobile}\n*Address:* ${address}\n*Pincode:* ${pincode}\n*Qty:* ${quantity} bottle(s)`
-      );
-      window.open(`https://wa.me/918968122246?text=${msg}`, "_blank");
-      // Fire Meta Pixel Lead event on successful COD order
-      try { (window as any).fbq?.("track", "Lead"); } catch (_) {}
-      setShowSuccess(true);
-    } catch (err) {
-      if (err instanceof DuplicateOrderError) {
-        alert("आप आज इस नंबर से ऑर्डर कर चुके हैं। कृपया कल प्रयास करें।");
-        return;
-      }
-      const apiMsg = err instanceof Error ? err.message : "Unknown error";
-      console.error("CRM submission failed (all retries exhausted):", apiMsg, err);
-      sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "COD-Fallback");
-      alert(`Order failed: ${apiMsg}\n\nYour details have been saved. Please call us at +91 89681 22246 to confirm your order.`);
-    } finally {
-      setLoading(false);
+    // Client-side duplicate guard (non-blocking check via localStorage)
+    if (hasOrderedToday(mobile)) {
+      alert("आप आज इस नंबर से ऑर्डर कर चुके हैं। कृपया कल प्रयास करें।");
+      return;
     }
+
+    setLoading(true);
+
+    // Fire CRM in background — never block the order confirmation
+    sendLeadToCRM({
+      name:    name.trim(),
+      address: address.trim(),
+      pincode: pincode.trim(),
+      Number:  mobile,
+    }).then(() => {
+      console.log("[COD] CRM lead saved successfully.");
+    }).catch((err) => {
+      if (err instanceof DuplicateOrderError) return;
+      console.error("[COD] CRM failed (non-blocking):", err instanceof Error ? err.message : err);
+    });
+
+    // Always confirm order via Google Sheets + WhatsApp
+    sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "COD");
+    const msg = encodeURIComponent(
+      `*New COD Order:*\n*Product:* KamaSutra Gold+\n*Name:* ${name}\n*Mobile:* ${mobile}\n*Address:* ${address}\n*Pincode:* ${pincode}\n*Qty:* ${quantity} bottle(s)`
+    );
+    window.open(`https://wa.me/918968122246?text=${msg}`, "_blank");
+
+    // Fire Meta Pixel Lead event
+    try { (window as any).fbq?.("track", "Lead"); } catch (_) {}
+
+    setLoading(false);
+    setShowSuccess(true);
   }
 
   function handlePayNowClick(e: React.MouseEvent<HTMLButtonElement>) {

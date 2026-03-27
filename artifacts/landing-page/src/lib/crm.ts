@@ -1,4 +1,4 @@
-export const CRM_POST_URL = "https://crm.prakritiherbs.com/api/orders";
+export const CRM_POST_URL = "https://api.prakritiherbs.com/api/Indstore";
 
 const MAX_RETRIES    = 2;
 const RETRY_DELAY_MS = 800;
