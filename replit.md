@@ -57,7 +57,12 @@ Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` 
 
 - Entry: `src/index.ts` — reads `PORT`, starts Express
 - App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
+- Routes: `src/routes/index.ts` mounts sub-routers
+  - `orders.ts` — POST /api/orders (COD order creation + Meta CAPI Lead event)
+  - `admin.ts` — Admin CRUD: login, orders list/filter/status update, download log
+  - `analytics.ts` — POST /api/analytics/pageview (public), GET /api/admin/analytics (protected)
+  - `crm.ts` — CRM push to external endpoint
+- **Meta Conversions API** (`lib/metaCapi.ts`): fires Lead event server-side with SHA-256 hashed PII, `event_source: "crm"`, `lead_event_source: "Prakriti CRM"`, deduplication via `event_id`
 - Depends on: `@workspace/db`, `@workspace/api-zod`
 - `pnpm --filter @workspace/api-server run dev` — run the dev server
 - `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
@@ -69,7 +74,9 @@ Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client insta
 
 - `src/index.ts` — creates a `Pool` + Drizzle instance, exports schema
 - `src/schema/index.ts` — barrel re-export of all models
-- `src/schema/<modelname>.ts` — table definitions with `drizzle-zod` insert schemas (no models definitions exist right now)
+- `src/schema/orders.ts` — `orders` table (id, orderId, name, phone, address, pincode, qty, product, source, status, createdAt)
+- `src/schema/downloads.ts` — `admin_downloads` table (export audit log)
+- `src/schema/pageviews.ts` — `page_views` table (path, sessionId, referrer, userAgent, createdAt); `daily_visitor_stats` table
 - `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
 - Exports: `.` (pool, db, schema), `./schema` (schema only)
 

@@ -1,3 +1,7 @@
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+
 const API_BASE = "/api";
 const TOKEN_KEY = "admin_token";
 
@@ -94,6 +98,24 @@ export interface AdminDownload {
   downloadedAt: string;
 }
 
+export interface AnalyticsData {
+  ordersByDay: { date: string; count: number }[];
+  ordersByHour: { hour: number; count: number }[];
+  ordersBySource: { source: string; count: number }[];
+  visitors: {
+    today: number;
+    yesterday: number;
+    last7: number;
+    last30: number;
+    total: number;
+  };
+  conversion: {
+    last30: { visitors: number; orders: number; rate: number };
+    last7: { visitors: number; orders: number; rate: number };
+    today: { visitors: number; orders: number; rate: number };
+  };
+}
+
 export async function fetchOrders(params: {
   search?: string;
   status?: string;
@@ -139,6 +161,151 @@ export async function fetchDownloads(): Promise<AdminDownload[]> {
   if (!res.ok) return [];
   const data = await res.json();
   return (data as { downloads: AdminDownload[] }).downloads;
+}
+
+export async function fetchAnalytics(): Promise<AnalyticsData> {
+  const res = await authFetch("/admin/analytics");
+  if (!res.ok) throw new Error("Failed to fetch analytics");
+  return res.json();
+}
+
+function formatIST(dateStr: string): string {
+  return new Date(dateStr).toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function ordersToSheetRows(orders: Order[]) {
+  return orders.map((o) => ({
+    "Date (IST)": formatIST(o.createdAt),
+    "Order ID": o.orderId,
+    "Name": o.name,
+    "Mobile": o.phone,
+    "Address": o.address,
+    "Pincode": o.pincode,
+    "Product": o.product,
+    "Qty": o.quantity,
+    "Source": o.source,
+    "Status": o.status,
+  }));
+}
+
+function applyXlsxStyle(ws: XLSX.WorkSheet, numCols: number) {
+  const range = XLSX.utils.decode_range(ws["!ref"] ?? "A1");
+  ws["!cols"] = [
+    { wch: 20 }, { wch: 14 }, { wch: 22 }, { wch: 14 },
+    { wch: 36 }, { wch: 10 }, { wch: 18 }, { wch: 5 },
+    { wch: 12 }, { wch: 12 },
+  ].slice(0, numCols);
+  return ws;
+}
+
+export function exportOrdersToXLSX(orders: Order[], filename: string): void {
+  const rows = ordersToSheetRows(orders);
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(rows);
+  applyXlsxStyle(ws, 10);
+  XLSX.utils.book_append_sheet(wb, ws, "Orders");
+  XLSX.writeFile(wb, filename);
+}
+
+export function exportSingleOrderToXLSX(order: Order): void {
+  const rows = ordersToSheetRows([order]);
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(rows);
+  applyXlsxStyle(ws, 10);
+  XLSX.utils.book_append_sheet(wb, ws, "Order");
+  XLSX.writeFile(wb, `order_${order.orderId}.xlsx`);
+}
+
+export function exportSingleOrderToPDF(order: Order): void {
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a5" });
+
+  doc.setFillColor(27, 94, 32);
+  doc.rect(0, 0, 148, 20, "F");
+  doc.setTextColor(201, 161, 74);
+  doc.setFontSize(13);
+  doc.setFont("helvetica", "bold");
+  doc.text("Prakriti Herbs — Order Details", 74, 13, { align: "center" });
+
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.text(`Generated: ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`, 74, 25, { align: "center" });
+
+  autoTable(doc, {
+    startY: 30,
+    head: [["Field", "Value"]],
+    body: [
+      ["Order ID", order.orderId],
+      ["Date (IST)", formatIST(order.createdAt)],
+      ["Name", order.name],
+      ["Mobile", order.phone],
+      ["Address", order.address],
+      ["Pincode", order.pincode],
+      ["Product", order.product],
+      ["Quantity", String(order.quantity)],
+      ["Source", order.source],
+      ["Status", order.status],
+    ],
+    headStyles: { fillColor: [27, 94, 32], textColor: [255, 255, 255], fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [245, 250, 245] },
+    columnStyles: { 0: { fontStyle: "bold", cellWidth: 35 }, 1: { cellWidth: 90 } },
+    styles: { fontSize: 9, cellPadding: 3 },
+  });
+
+  doc.save(`order_${order.orderId}.pdf`);
+}
+
+export function exportOrdersToPDF(orders: Order[], filename: string): void {
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+
+  doc.setFillColor(27, 94, 32);
+  doc.rect(0, 0, 297, 18, "F");
+  doc.setTextColor(201, 161, 74);
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.text("Prakriti Herbs — Orders Export", 148.5, 12, { align: "center" });
+
+  doc.setTextColor(100, 100, 100);
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "normal");
+  doc.text(`Generated: ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} | Total: ${orders.length} orders`, 148.5, 22, { align: "center" });
+
+  autoTable(doc, {
+    startY: 26,
+    head: [["Date (IST)", "Order ID", "Name", "Mobile", "Address", "Pincode", "Source", "Status"]],
+    body: orders.map((o) => [
+      formatIST(o.createdAt),
+      o.orderId,
+      o.name,
+      o.phone,
+      o.address.substring(0, 40) + (o.address.length > 40 ? "..." : ""),
+      o.pincode,
+      o.source,
+      o.status,
+    ]),
+    headStyles: { fillColor: [27, 94, 32], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
+    alternateRowStyles: { fillColor: [248, 252, 248] },
+    styles: { fontSize: 7, cellPadding: 2 },
+    columnStyles: {
+      0: { cellWidth: 32 },
+      1: { cellWidth: 22 },
+      2: { cellWidth: 28 },
+      3: { cellWidth: 22 },
+      4: { cellWidth: 65 },
+      5: { cellWidth: 16 },
+      6: { cellWidth: 20 },
+      7: { cellWidth: 18 },
+    },
+  });
+
+  doc.save(filename);
 }
 
 export function exportOrdersToCSV(orders: Order[], filename: string): void {

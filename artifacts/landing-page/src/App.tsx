@@ -25,8 +25,21 @@ function RoutePageViewTracker() {
   const isFirst = useRef(true);
   useEffect(() => {
     if (isFirst.current) {
-      // Skip first render — index.html already fired PageView on hard load
       isFirst.current = false;
+      // Fire server-side page view on initial load (exclude admin routes)
+      if (!location.startsWith("/admin")) {
+        const sessionId = sessionStorage.getItem("pv_sid") ?? (() => {
+          const id = Math.random().toString(36).slice(2);
+          sessionStorage.setItem("pv_sid", id);
+          return id;
+        })();
+        fetch("/api/analytics/pageview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path: location || "/", sessionId, referrer: document.referrer }),
+          keepalive: true,
+        }).catch(() => {});
+      }
       return;
     }
     // Fire on every subsequent client-side navigation

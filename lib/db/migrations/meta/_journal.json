@@ -8,6 +8,13 @@
       "when": 1774458034798,
       "tag": "0000_fuzzy_swarm",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1774615297683,
+      "tag": "0001_pageviews",
+      "breakpoints": true
     }
   ]
 }
