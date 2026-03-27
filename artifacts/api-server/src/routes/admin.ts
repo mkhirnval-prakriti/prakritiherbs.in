@@ -616,12 +616,14 @@ router.post("/abandoned-cart", async (req, res) => {
 
 router.get("/admin/abandoned-carts", requireAdmin, async (req, res) => {
   try {
-    const { search, status, page = "1", limit = "50" } = req.query as Record<string, string>;
+    const { search, status, dateFrom, dateTo, page = "1", limit = "50" } = req.query as Record<string, string>;
     const conditions = [];
     if (search) conditions.push(or(like(abandonedCartsTable.name, `%${search}%`), like(abandonedCartsTable.phone, `%${search}%`)));
     if (status && status !== "all") conditions.push(eq(abandonedCartsTable.recoveryStatus, status));
+    if (dateFrom) conditions.push(gte(abandonedCartsTable.createdAt, new Date(dateFrom)));
+    if (dateTo) { const end = new Date(dateTo); end.setHours(23, 59, 59, 999); conditions.push(lte(abandonedCartsTable.createdAt, end)); }
     const pageNum = Math.max(1, parseInt(page, 10));
-    const limitNum = Math.min(100, parseInt(limit, 10));
+    const limitNum = Math.min(5000, parseInt(limit, 10));
     const where = conditions.length > 0 ? and(...conditions) : undefined;
     const [carts, countResult] = await Promise.all([
       db.select().from(abandonedCartsTable).where(where).orderBy(desc(abandonedCartsTable.createdAt)).limit(limitNum).offset((pageNum - 1) * limitNum),

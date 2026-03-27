@@ -326,20 +326,55 @@ function RowActions({ order, onShipped, settings }: { order: Order; onShipped: (
   );
 }
 
+type DatePreset = "today" | "yesterday" | "this_week" | "this_month" | "last_month" | "all";
+
+function toISTDateStr(d: Date) {
+  return d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+}
+
+function getPresetDates(preset: DatePreset): { from: string; to: string } {
+  const now = new Date();
+  const istNow = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+  const y = istNow.getFullYear(), m = istNow.getMonth(), day = istNow.getDate();
+  switch (preset) {
+    case "today":
+      return { from: toISTDateStr(istNow), to: toISTDateStr(istNow) };
+    case "yesterday": {
+      const yd = new Date(y, m, day - 1);
+      return { from: toISTDateStr(yd), to: toISTDateStr(yd) };
+    }
+    case "this_week": {
+      const dow = istNow.getDay(); // 0=Sun
+      const mon = new Date(y, m, day - (dow === 0 ? 6 : dow - 1));
+      return { from: toISTDateStr(mon), to: toISTDateStr(istNow) };
+    }
+    case "this_month":
+      return { from: toISTDateStr(new Date(y, m, 1)), to: toISTDateStr(istNow) };
+    case "last_month": {
+      const lm1 = new Date(y, m - 1, 1);
+      const lm2 = new Date(y, m, 0);
+      return { from: toISTDateStr(lm1), to: toISTDateStr(lm2) };
+    }
+    default:
+      return { from: "", to: "" };
+  }
+}
+
 export function AdminOrders({ globalSearch, settings }: { globalSearch: string; settings: Record<string, string> }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [stats, setStats] = useState<OrderStats | null>(null);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [search, setSearch] = useState(globalSearch);
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [datePreset, setDatePreset] = useState<DatePreset>("all");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkStatus, setBulkStatus] = useState("Confirmed");
   const [bulkLoading, setBulkLoading] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
   const LIMIT = 25;
 
   const loadOrders = useCallback(async (pg = 1) => {
@@ -366,8 +401,15 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
     finally { setBulkLoading(false); }
   }
 
+  function handlePresetChange(preset: DatePreset) {
+    setDatePreset(preset);
+    const { from, to } = getPresetDates(preset);
+    setDateFrom(from);
+    setDateTo(to);
+  }
+
   async function handleExport(type: "xlsx" | "pdf" | "csv") {
-    setExportOpen(false); setLoading(true);
+    setExporting(true);
     try {
       const r = await fetchOrders({ search, status: statusFilter, dateFrom, dateTo, page: 1, limit: 10000 });
       const now = new Date().toISOString().slice(0, 10);
@@ -375,38 +417,29 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
       if (type === "xlsx") { const fn = `prakriti_orders_${now}.xlsx`; exportOrdersToXLSX(r.orders, fn); await logDownload(fn, r.orders.length, filters); }
       else if (type === "pdf") { const fn = `prakriti_orders_${now}.pdf`; exportOrdersToPDF(r.orders, fn); await logDownload(fn, r.orders.length, filters); }
       else { const fn = `prakriti_orders_${now}.csv`; exportOrdersToCSV(r.orders, fn); await logDownload(fn, r.orders.length, filters); }
-    } catch { alert("Export failed"); }
-    finally { setLoading(false); }
+    } catch { alert("Export failed. Please try again."); }
+    finally { setExporting(false); }
   }
 
   const totalPages = Math.ceil(total / LIMIT);
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Orders</h1>
           {stats && <p className="text-xs text-gray-500">{stats.total.toLocaleString()} total · {stats.today} today · {stats.new} new</p>}
         </div>
-        <div className="relative">
-          <button onClick={() => setExportOpen((v) => !v)} disabled={loading}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:brightness-110"
-            style={{ background: `linear-gradient(135deg, ${GOLD}, #e8c96a)`, color: G }}>
-            <Download className="w-3.5 h-3.5" /> Export
-          </button>
-          {exportOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setExportOpen(false)} />
-              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 py-1 min-w-[170px]">
-                {(["xlsx", "pdf", "csv"] as const).map((t) => (
-                  <button key={t} onClick={() => handleExport(t)}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                    <FileSpreadsheet className="w-4 h-4 text-green-600" /> {t.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-gray-500 font-medium">Download:</span>
+          {(["xlsx", "pdf", "csv"] as const).map((t) => (
+            <button key={t} onClick={() => void handleExport(t)} disabled={exporting || loading}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border transition-all hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={t === "xlsx" ? { background: "#e8f5e9", color: "#1B5E20", borderColor: "#a5d6a7" } : t === "pdf" ? { background: "#fce4ec", color: "#c62828", borderColor: "#ef9a9a" } : { background: "#e3f2fd", color: "#1565c0", borderColor: "#90caf9" }}>
+              {exporting ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+              {t.toUpperCase()}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -421,7 +454,7 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
         <form onSubmit={(e) => { e.preventDefault(); void loadOrders(1); }} className="flex flex-col sm:flex-row gap-3 flex-wrap">
           <div className="flex-1 min-w-[160px] relative">
             <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
@@ -433,14 +466,11 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
             <option value="all">All Status</option>
             {ALL_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
-          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none" />
-          <span className="text-gray-400 text-sm self-center">to</span>
-          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none" />
           <div className="flex gap-2">
             <button type="submit" className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white hover:brightness-110" style={{ background: G }}>
               <Filter className="w-3.5 h-3.5" /> Filter
             </button>
-            <button type="button" onClick={() => { setSearch(""); setStatusFilter("all"); setDateFrom(""); setDateTo(""); void loadOrders(1); }}
+            <button type="button" onClick={() => { setSearch(""); setStatusFilter("all"); setDateFrom(""); setDateTo(""); setDatePreset("all"); void loadOrders(1); }}
               className="px-3 py-2 rounded-lg text-sm bg-gray-100 hover:bg-gray-200 text-gray-600">Clear</button>
             <button type="button" onClick={() => void loadOrders(page)} disabled={loading}
               className="px-3 py-2 rounded-lg text-sm bg-gray-100 hover:bg-gray-200 text-gray-600">
@@ -448,6 +478,32 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
             </button>
           </div>
         </form>
+
+        {/* Date Range Row */}
+        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-gray-100">
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Date Range:</span>
+          <select value={datePreset} onChange={(e) => { handlePresetChange(e.target.value as DatePreset); }}
+            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500/30">
+            <option value="all">All Time</option>
+            <option value="today">Today</option>
+            <option value="yesterday">Yesterday</option>
+            <option value="this_week">This Week</option>
+            <option value="this_month">This Month</option>
+            <option value="last_month">Last Month</option>
+          </select>
+          <span className="text-xs text-gray-400">or custom:</span>
+          <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setDatePreset("all"); }}
+            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30" />
+          <span className="text-gray-400 text-xs">to</span>
+          <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setDatePreset("all"); }}
+            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30" />
+          {(dateFrom || dateTo) && (
+            <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); setDatePreset("all"); }}
+              className="text-xs text-gray-400 hover:text-gray-600 underline">
+              Clear dates
+            </button>
+          )}
+        </div>
 
         {selected.size > 0 && (
           <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-100">

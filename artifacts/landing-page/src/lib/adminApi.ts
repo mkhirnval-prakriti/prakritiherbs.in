@@ -187,10 +187,12 @@ export async function sendWhatsAppToCart(id: number): Promise<void> {
   if (!res.ok) throw new Error(data.error ?? "WhatsApp failed");
 }
 
-export async function fetchAbandonedCarts(params: { search?: string; status?: string; page?: number; limit?: number } = {}): Promise<{ carts: AbandonedCart[]; total: number; page: number }> {
+export async function fetchAbandonedCarts(params: { search?: string; status?: string; dateFrom?: string; dateTo?: string; page?: number; limit?: number } = {}): Promise<{ carts: AbandonedCart[]; total: number; page: number }> {
   const qs = new URLSearchParams();
   if (params.search) qs.set("search", params.search);
   if (params.status && params.status !== "all") qs.set("status", params.status);
+  if (params.dateFrom) qs.set("dateFrom", params.dateFrom);
+  if (params.dateTo) qs.set("dateTo", params.dateTo);
   if (params.page) qs.set("page", String(params.page));
   if (params.limit) qs.set("limit", String(params.limit));
   const res = await authFetch(`/admin/abandoned-carts?${qs}`);
@@ -219,10 +221,13 @@ export async function recoverAbandonedCart(id: number): Promise<{ ok: boolean; o
 
 export function exportAbandonedCartsToXLSX(carts: AbandonedCart[], filename: string): void {
   const rows = carts.map((c) => ({
-    Date: new Date(c.createdAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
-    Name: c.name, Mobile: c.phone,
-    Address: c.address ?? "", Pincode: c.pincode ?? "",
-    Status: c.recoveryStatus,
+    "Date (IST)": fmtISTForExport(c.createdAt),
+    "Name": c.name, "Mobile": c.phone, "Email": c.email ?? "",
+    "City": extractCity(c.address ?? ""),
+    "Address": c.address ?? "", "Pincode": c.pincode ?? "",
+    "State": pincodeToState(c.pincode ?? ""),
+    "Source": c.source ?? "COD",
+    "Recovery Status": c.recoveryStatus,
   }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Abandoned Carts");
@@ -230,10 +235,12 @@ export function exportAbandonedCartsToXLSX(carts: AbandonedCart[], filename: str
 }
 
 export function exportAbandonedCartsToCSV(carts: AbandonedCart[], filename: string): void {
-  const headers = ["Date", "Name", "Mobile", "Address", "Pincode", "Status"];
+  const headers = ["Date (IST)", "Name", "Mobile", "Email", "City", "Address", "Pincode", "State", "Source", "Recovery Status"];
   const rows = carts.map((c) => [
-    new Date(c.createdAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
-    c.name, c.phone, c.address ?? "", c.pincode ?? "", c.recoveryStatus,
+    fmtISTForExport(c.createdAt),
+    `"${c.name}"`, c.phone, c.email ?? "",
+    `"${extractCity(c.address ?? "")}"`, `"${c.address ?? ""}"`,
+    c.pincode ?? "", pincodeToState(c.pincode ?? ""), c.source ?? "COD", c.recoveryStatus,
   ]);
   const csv = [headers, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
@@ -289,6 +296,17 @@ export async function logDownload(filename: string, recordCount: number, filters
   await authFetch("/admin/downloads", { method: "POST", body: JSON.stringify({ filename, recordCount, filters }) });
 }
 
+function extractCity(address: string): string {
+  /* Try to extract city from Indian address.
+     Common format: "House/Flat, Street, Area, City, State"
+     We take the second-to-last comma-delimited segment after stripping any trailing 6-digit pincode. */
+  const clean = address.replace(/\b\d{6}\b/g, "").replace(/\s+/g, " ").trim().replace(/,\s*$/, "");
+  const parts = clean.split(",").map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0];
+  return parts[parts.length - 2] ?? parts[parts.length - 1];
+}
+
 function fmtISTForExport(dateStr: string): string {
   return new Date(dateStr).toLocaleString("en-IN", {
     timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit",
@@ -331,7 +349,7 @@ export function pincodeToState(pincode: string | null | undefined): string {
 export function exportOrdersToXLSX(orders: Order[], filename = "orders.xlsx"): void {
   const rows = orders.map((o) => ({
     "Order ID": o.orderId, "Date (IST)": fmtISTForExport(o.createdAt),
-    "Name": o.name, "Mobile": o.phone, "Email": o.email ?? "", "Address": o.address, "Pincode": o.pincode,
+    "Name": o.name, "Mobile": o.phone, "Email": o.email ?? "", "City": extractCity(o.address), "Address": o.address, "Pincode": o.pincode,
     "State": pincodeToState(o.pincode),
     "Qty": o.quantity, "Amount (₹)": 999 * o.quantity,
     "Channel": o.visitorSource ?? "Direct", "Source": o.source,
@@ -376,10 +394,12 @@ export function exportSingleOrderToPDF(order: Order): void {
 }
 
 export function exportOrdersToCSV(orders: Order[], filename = "orders.csv"): void {
-  const headers = ["Order ID", "Date (IST)", "Name", "Mobile", "Email", "Address", "Pincode", "Qty", "Amount (₹)", "Channel", "Source", "Payment", "Pay Status", "Status", "Tracking", "Courier", "Repeat"];
+  const headers = ["Order ID", "Date (IST)", "Name", "Mobile", "Email", "City", "Address", "Pincode", "State", "Qty", "Amount (₹)", "Source", "Channel", "Payment", "Pay Status", "Status", "Tracking", "Courier", "Repeat"];
   const rows = orders.map((o) => [
-    o.orderId, fmtISTForExport(o.createdAt), `"${o.name}"`, o.phone, o.email ?? "", `"${o.address}"`,
-    o.pincode, o.quantity, 999 * o.quantity, o.visitorSource ?? "Direct", o.source, o.paymentMethod ?? "COD",
+    o.orderId, fmtISTForExport(o.createdAt), `"${o.name}"`, o.phone, o.email ?? "",
+    `"${extractCity(o.address)}"`, `"${o.address}"`,
+    o.pincode, pincodeToState(o.pincode), o.quantity, 999 * o.quantity,
+    o.visitorSource ?? "Direct", o.source, o.paymentMethod ?? "COD",
     o.paymentStatus ?? "pending", o.status, o.trackingId ?? "", o.courier ?? "", o.isRepeat ? "Yes" : "No",
   ]);
   const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");

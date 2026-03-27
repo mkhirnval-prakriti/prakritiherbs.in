@@ -376,23 +376,53 @@ function HomePage({ stats, analytics, loading }: { stats: OrderStats | null; ana
 }
 
 /* ─── Abandoned Carts ─── */
+type CartDatePreset = "today" | "yesterday" | "this_week" | "this_month" | "last_month" | "all";
+
+function toCartISTDateStr(d: Date) {
+  return d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+}
+
+function getCartPresetDates(preset: CartDatePreset): { from: string; to: string } {
+  const now = new Date();
+  const istNow = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+  const y = istNow.getFullYear(), m = istNow.getMonth(), day = istNow.getDate();
+  switch (preset) {
+    case "today": return { from: toCartISTDateStr(istNow), to: toCartISTDateStr(istNow) };
+    case "yesterday": { const yd = new Date(y, m, day - 1); return { from: toCartISTDateStr(yd), to: toCartISTDateStr(yd) }; }
+    case "this_week": { const dow = istNow.getDay(); const mon = new Date(y, m, day - (dow === 0 ? 6 : dow - 1)); return { from: toCartISTDateStr(mon), to: toCartISTDateStr(istNow) }; }
+    case "this_month": return { from: toCartISTDateStr(new Date(y, m, 1)), to: toCartISTDateStr(istNow) };
+    case "last_month": { const lm1 = new Date(y, m - 1, 1); const lm2 = new Date(y, m, 0); return { from: toCartISTDateStr(lm1), to: toCartISTDateStr(lm2) }; }
+    default: return { from: "", to: "" };
+  }
+}
+
 function AbandonedCartsPage() {
   const [carts, setCarts] = useState<AbandonedCart[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [datePreset, setDatePreset] = useState<CartDatePreset>("all");
   const [waLoading, setWaLoading] = useState<number | null>(null);
   const [recoverLoading, setRecoverLoading] = useState<number | null>(null);
-  const [exportOpen, setExportOpen] = useState(false);
   const LIMIT = 25;
+
+  function handlePresetChange(preset: CartDatePreset) {
+    setDatePreset(preset);
+    const { from, to } = getCartPresetDates(preset);
+    setDateFrom(from);
+    setDateTo(to);
+  }
 
   const load = useCallback(async (pg = 1) => {
     setLoading(true);
-    try { const r = await fetchAbandonedCarts({ search, status: statusFilter, page: pg, limit: LIMIT }); setCarts(r.carts); setTotal(r.total); setPage(pg); }
+    try { const r = await fetchAbandonedCarts({ search, status: statusFilter, dateFrom, dateTo, page: pg, limit: LIMIT }); setCarts(r.carts); setTotal(r.total); setPage(pg); }
     finally { setLoading(false); }
-  }, [search, statusFilter]);
+  }, [search, statusFilter, dateFrom, dateTo]);
 
   useEffect(() => { void load(1); }, [load]);
 
@@ -415,40 +445,39 @@ function AbandonedCartsPage() {
   }
 
   async function handleExport(type: "xlsx" | "csv") {
-    setExportOpen(false); setLoading(true);
+    setExporting(true);
     try {
-      const r = await fetchAbandonedCarts({ search, status: statusFilter, page: 1, limit: 5000 });
+      const r = await fetchAbandonedCarts({ search, status: statusFilter, dateFrom, dateTo, page: 1, limit: 5000 });
       const now = new Date().toISOString().slice(0, 10);
       if (type === "xlsx") exportAbandonedCartsToXLSX(r.carts, `abandoned_carts_${now}.xlsx`);
       else exportAbandonedCartsToCSV(r.carts, `abandoned_carts_${now}.csv`);
-    } catch { alert("Export failed"); }
-    finally { setLoading(false); }
+    } catch { alert("Export failed. Please try again."); }
+    finally { setExporting(false); }
   }
 
   const totalPages = Math.ceil(total / LIMIT);
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Abandoned Carts</h1>
           <p className="text-xs text-gray-500 mt-0.5">Customers who filled name/phone but didn't complete the order</p>
         </div>
-        <div className="relative">
-          <button onClick={() => setExportOpen((v) => !v)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition-all hover:brightness-110"
-            style={{ background: `linear-gradient(135deg, ${GOLD}, #e8c96a)`, color: G }}>
-            <Download className="w-3.5 h-3.5" /> Export
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-gray-500 font-medium">Download:</span>
+          <button onClick={() => void handleExport("xlsx")} disabled={exporting || loading}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border transition-all hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ background: "#e8f5e9", color: G, borderColor: "#a5d6a7" }}>
+            {exporting ? <RefreshCw className="w-3 h-3 animate-spin" /> : <FileSpreadsheet className="w-3 h-3" />}
+            XLSX
           </button>
-          {exportOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setExportOpen(false)} />
-              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 py-1 min-w-[140px]">
-                <button onClick={() => void handleExport("xlsx")} className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"><FileSpreadsheet className="w-4 h-4 text-green-600" /> Excel (.xlsx)</button>
-                <button onClick={() => void handleExport("csv")} className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"><FileText className="w-4 h-4 text-blue-600" /> CSV</button>
-              </div>
-            </>
-          )}
+          <button onClick={() => void handleExport("csv")} disabled={exporting || loading}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border transition-all hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ background: "#e3f2fd", color: "#1565c0", borderColor: "#90caf9" }}>
+            {exporting ? <RefreshCw className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
+            CSV
+          </button>
         </div>
       </div>
 
@@ -458,7 +487,7 @@ function AbandonedCartsPage() {
         ))}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
@@ -475,10 +504,37 @@ function AbandonedCartsPage() {
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white hover:brightness-110" style={{ background: G }}>
             <Filter className="w-3.5 h-3.5" /> Filter
           </button>
+          <button onClick={() => { setSearch(""); setStatusFilter("all"); setDateFrom(""); setDateTo(""); setDatePreset("all"); }}
+            className="px-3 py-2 rounded-lg text-sm bg-gray-100 hover:bg-gray-200 text-gray-600">Clear</button>
           <button onClick={() => void load(page)} disabled={loading} className="px-3 py-2 rounded-lg text-sm bg-gray-100 hover:bg-gray-200 text-gray-600">
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
+
+        {/* Date Range Row */}
+        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-gray-100">
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Date Range:</span>
+          <select value={datePreset} onChange={(e) => handlePresetChange(e.target.value as CartDatePreset)}
+            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500/30">
+            <option value="all">All Time</option>
+            <option value="today">Today</option>
+            <option value="yesterday">Yesterday</option>
+            <option value="this_week">This Week</option>
+            <option value="this_month">This Month</option>
+            <option value="last_month">Last Month</option>
+          </select>
+          <span className="text-xs text-gray-400">or custom:</span>
+          <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setDatePreset("all"); }}
+            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30" />
+          <span className="text-gray-400 text-xs">to</span>
+          <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setDatePreset("all"); }}
+            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30" />
+          {(dateFrom || dateTo) && (
+            <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); setDatePreset("all"); }}
+              className="text-xs text-gray-400 hover:text-gray-600 underline">Clear dates</button>
+          )}
+        </div>
+        <p className="text-xs text-gray-400">{total} cart{total !== 1 ? "s" : ""} found</p>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
