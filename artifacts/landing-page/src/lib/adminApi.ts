@@ -41,6 +41,32 @@ export async function adminLogin(username: string, password: string): Promise<{ 
   return res.json();
 }
 
+export async function forgotPassword(email: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/admin/forgot-password`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) { const e = await res.json() as { error: string }; throw new Error(e.error); }
+}
+
+export async function verifyOtp(email: string, otp: string, newPassword: string): Promise<{ token: string; username: string; role: string }> {
+  const res = await fetch(`${API_BASE}/admin/verify-otp`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, otp, newPassword }),
+  });
+  if (!res.ok) { const e = await res.json() as { error: string }; throw new Error(e.error); }
+  return res.json();
+}
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<{ token: string; message: string }> {
+  const res = await authFetch(`/admin/change-password`, {
+    method: "POST",
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  if (!res.ok) { const e = await res.json() as { error: string }; throw new Error(e.error); }
+  return res.json();
+}
+
 export interface Order {
   id: number; orderId: string; name: string; phone: string; address: string;
   pincode: string; quantity: number; product: string; source: string; status: string;

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { fetchSettings, saveSettings, fetchStaff, createStaff, deleteStaff, isSuperAdmin, type StaffUser } from "@/lib/adminApi";
-import { Save, Truck, MessageSquare, CreditCard, Building2, Mail, Clock, ExternalLink, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Zap, Users, UserPlus, Trash2, ShieldCheck, Eye } from "lucide-react";
+import { fetchSettings, saveSettings, fetchStaff, createStaff, deleteStaff, isSuperAdmin, changePassword, setAdminToken, type StaffUser } from "@/lib/adminApi";
+import { Save, Truck, MessageSquare, CreditCard, Building2, Mail, Clock, ExternalLink, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Zap, Users, UserPlus, Trash2, ShieldCheck, Eye, EyeOff, Lock, KeyRound, Loader2 } from "lucide-react";
 
 const G = "#1B5E20";
 
@@ -45,6 +45,89 @@ function TextareaField({ label, name, value, onChange, placeholder, rows = 3 }: 
       <textarea value={value} onChange={(e) => onChange(name, e.target.value)} rows={rows} placeholder={placeholder}
         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30 resize-none" />
     </div>
+  );
+}
+
+/* ── Change Password ──────────────────────────────────────────────────────── */
+function ChangePasswordSection() {
+  const [current, setCurrent] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(""); setSuccess("");
+    if (!current || !newPw || !confirm) { setError("All fields are required"); return; }
+    if (newPw.length < 8) { setError("New password must be at least 8 characters"); return; }
+    if (newPw !== confirm) { setError("Passwords do not match"); return; }
+    setLoading(true);
+    try {
+      const { token, message } = await changePassword(current, newPw);
+      setAdminToken(token);
+      setCurrent(""); setNewPw(""); setConfirm("");
+      setSuccess(message ?? "Password updated. All other sessions have been logged out.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to change password");
+    } finally { setLoading(false); }
+  }
+
+  const inputClass = "w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-600/30 text-sm";
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {error && <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex items-start gap-2"><AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />{error}</div>}
+      {success && <div className="p-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm flex items-start gap-2"><CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />{success}</div>}
+
+      <div>
+        <label className="text-xs font-semibold text-gray-600 mb-1 block">Current Password</label>
+        <div className="relative">
+          <Lock className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+          <input type={showCurrent ? "text" : "password"} value={current} onChange={(e) => setCurrent(e.target.value)} className={inputClass} placeholder="Enter current password" autoComplete="current-password" />
+          <button type="button" onClick={() => setShowCurrent((v) => !v)} className="absolute right-3 top-3 text-gray-400 hover:text-gray-600">
+            {showCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <label className="text-xs font-semibold text-gray-600 mb-1 block">New Password</label>
+        <div className="relative">
+          <Lock className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+          <input type={showNew ? "text" : "password"} value={newPw} onChange={(e) => setNewPw(e.target.value)} className={inputClass} placeholder="Minimum 8 characters" autoComplete="new-password" />
+          <button type="button" onClick={() => setShowNew((v) => !v)} className="absolute right-3 top-3 text-gray-400 hover:text-gray-600">
+            {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <label className="text-xs font-semibold text-gray-600 mb-1 block">Confirm New Password</label>
+        <div className="relative">
+          <Lock className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+          <input type={showConfirm ? "text" : "password"} value={confirm} onChange={(e) => setConfirm(e.target.value)} className={inputClass} placeholder="Re-enter new password" autoComplete="new-password" />
+          <button type="button" onClick={() => setShowConfirm((v) => !v)} className="absolute right-3 top-3 text-gray-400 hover:text-gray-600">
+            {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 flex items-start gap-2">
+        <ShieldCheck className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-600" />
+        Changing your password will immediately log out all other active sessions. A security alert will be sent to <strong>contact@prakritiherbs.in</strong>.
+      </div>
+
+      <button type="submit" disabled={loading}
+        className="w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:brightness-110 disabled:opacity-70"
+        style={{ background: "linear-gradient(135deg, #C9A14A 0%, #e8c96a 50%, #C9A14A 100%)", color: "#1B5E20" }}>
+        {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Updating Password...</> : <><KeyRound className="w-4 h-4" />Update Password</>}
+      </button>
+    </form>
   );
 }
 
@@ -355,6 +438,12 @@ export function AdminSettings() {
           </div>
         </div>
       </Section>
+
+      {superAdmin && (
+        <Section title="Change Password" icon={<KeyRound className="w-4 h-4" />} defaultOpen={false}>
+          <ChangePasswordSection />
+        </Section>
+      )}
 
       {superAdmin && (
         <Section title="Staff Access Management" icon={<Users className="w-4 h-4" />} defaultOpen={false}>

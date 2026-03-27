@@ -8,6 +8,7 @@ import reviewsRouter from "./reviews";
 import settingsRouter from "./settings";
 import paymentsRouter from "./payments";
 import liveRouter from "./live";
+import authRouter from "./auth";
 
 const router: IRouter = Router();
 
@@ -15,6 +16,7 @@ router.use(healthRouter);
 router.use(liveRouter);
 router.use(ordersRouter);
 router.use(crmRouter);
+router.use(authRouter);
 router.use(adminRouter);
 router.use(analyticsRouter);
 router.use(reviewsRouter);

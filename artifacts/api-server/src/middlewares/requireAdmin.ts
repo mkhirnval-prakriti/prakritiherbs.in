@@ -8,68 +8,57 @@ export type AdminRole = "super_admin" | "order_manager" | "view_only";
 export interface AdminPayload {
   username: string;
   role: AdminRole;
+  pwv: number;   // password version — used for session invalidation
   iat: number;
   exp: number;
 }
 
+/* ── Revocation time (module-level cache) ──────────────────────────────────── */
+/* All tokens issued BEFORE this Unix-seconds timestamp are invalid.            */
+/* Loaded from DB at startup and updated on every password change.              */
+let _revocationTime = 0;
+
+export function setRevocationTime(t: number): void { _revocationTime = t; }
+export function getRevocationTime(): number { return _revocationTime; }
+
+/* ── Token verification helper ─────────────────────────────────────────────── */
+function verifyToken(authHeader: string | undefined): AdminPayload | null {
+  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+  try {
+    const payload = jwt.verify(authHeader.slice(7), JWT_SECRET) as AdminPayload;
+    /* Reject tokens that pre-date the last password change */
+    if ((payload.iat ?? 0) < _revocationTime) return null;
+    return payload;
+  } catch { return null; }
+}
+
+/* ── Middleware ────────────────────────────────────────────────────────────── */
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
-  const authHeader = req.headers["authorization"];
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    res.status(401).json({ error: "Unauthorized" });
+  const payload = verifyToken(req.headers["authorization"]);
+  if (!payload) {
+    res.status(401).json({ error: "Unauthorized — please log in again" });
     return;
   }
-  const token = authHeader.slice(7);
-  try {
-    const payload = jwt.verify(token, JWT_SECRET) as AdminPayload;
-    (req as Request & { admin: AdminPayload }).admin = payload;
-    next();
-  } catch {
-    res.status(401).json({ error: "Invalid or expired token" });
-  }
+  (req as Request & { admin: AdminPayload }).admin = payload;
+  next();
 }
 
-/** Only super_admin and order_manager can perform write actions */
 export function requireOrderManager(req: Request, res: Response, next: NextFunction): void {
-  const authHeader = req.headers["authorization"];
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-  const token = authHeader.slice(7);
-  try {
-    const payload = jwt.verify(token, JWT_SECRET) as AdminPayload;
-    if (payload.role === "view_only") {
-      res.status(403).json({ error: "View-only accounts cannot perform this action" });
-      return;
-    }
-    (req as Request & { admin: AdminPayload }).admin = payload;
-    next();
-  } catch {
-    res.status(401).json({ error: "Invalid or expired token" });
-  }
+  const payload = verifyToken(req.headers["authorization"]);
+  if (!payload) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (payload.role === "view_only") { res.status(403).json({ error: "View-only accounts cannot perform this action" }); return; }
+  (req as Request & { admin: AdminPayload }).admin = payload;
+  next();
 }
 
-/** Only the super_admin can access settings */
 export function requireSuperAdmin(req: Request, res: Response, next: NextFunction): void {
-  const authHeader = req.headers["authorization"];
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-  const token = authHeader.slice(7);
-  try {
-    const payload = jwt.verify(token, JWT_SECRET) as AdminPayload;
-    if (payload.role !== "super_admin") {
-      res.status(403).json({ error: "Only the super admin can access this section" });
-      return;
-    }
-    (req as Request & { admin: AdminPayload }).admin = payload;
-    next();
-  } catch {
-    res.status(401).json({ error: "Invalid or expired token" });
-  }
+  const payload = verifyToken(req.headers["authorization"]);
+  if (!payload) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (payload.role !== "super_admin") { res.status(403).json({ error: "Super admin access required" }); return; }
+  (req as Request & { admin: AdminPayload }).admin = payload;
+  next();
 }
 
-export function signAdminToken(username: string, role: AdminRole = "super_admin"): string {
-  return jwt.sign({ username, role }, JWT_SECRET, { expiresIn: "24h" });
+export function signAdminToken(username: string, role: AdminRole = "super_admin", pwv = 0): string {
+  return jwt.sign({ username, role, pwv }, JWT_SECRET, { expiresIn: "24h" });
 }

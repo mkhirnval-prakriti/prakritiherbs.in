@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, ordersTable, adminDownloadsTable, abandonedCartsTable, appSettingsTable } from "@workspace/db";
 import { eq, desc, like, and, gte, lte, sql, or, inArray } from "drizzle-orm";
 import { requireAdmin, requireSuperAdmin, signAdminToken, type AdminRole } from "../middlewares/requireAdmin";
-import { getSettings, saveSettingsBatch } from "./settings";
+import { getSettings, saveSettingsBatch, getSetting } from "./settings";
 import crypto from "crypto";
 
 const router: IRouter = Router();
@@ -32,10 +32,23 @@ async function saveStaffUsers(users: StaffUser[]): Promise<void> {
 router.post("/admin/login", async (req, res) => {
   const { username, password } = req.body as { username?: string; password?: string };
 
-  /* Super admin check (env vars) */
-  if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-    res.json({ token: signAdminToken(username, "super_admin"), username, role: "super_admin" });
-    return;
+  /* Current password version (for session-kill support) */
+  let pwv = 0;
+  try {
+    const v = await getSetting("admin_password_version");
+    pwv = v ? parseInt(v, 10) : 0;
+  } catch { /* ignore */ }
+
+  /* Super admin check: prefer DB-stored hash, fall back to env var */
+  if (username === ADMIN_USERNAME) {
+    const storedHash = await getSetting("admin_password_hash").catch(() => null);
+    const inputHash = hashPassword(password ?? "");
+    const validByHash = storedHash ? storedHash === inputHash : false;
+    const validByEnv = !storedHash && password === ADMIN_PASSWORD;
+    if (validByHash || validByEnv) {
+      res.json({ token: signAdminToken(username, "super_admin", pwv), username, role: "super_admin" });
+      return;
+    }
   }
 
   /* Staff user check (stored in app_settings) */
@@ -44,7 +57,7 @@ router.post("/admin/login", async (req, res) => {
     const hash = hashPassword(password ?? "");
     const found = staffUsers.find((u) => u.username === username && u.passwordHash === hash);
     if (found) {
-      res.json({ token: signAdminToken(found.username, found.role), username: found.username, role: found.role });
+      res.json({ token: signAdminToken(found.username, found.role, pwv), username: found.username, role: found.role });
       return;
     }
   } catch { /* ignore lookup errors */ }
