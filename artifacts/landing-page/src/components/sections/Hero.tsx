@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { CheckCircle, ShieldCheck, MessageCircle, ArrowRight, AlertCircle } from "lucide-react";
+import { WhatsAppChooser } from "@/components/FloatingContact";
 
 const badges = [
   "✔ 100% Ayurvedic",
@@ -9,6 +11,7 @@ const badges = [
 ];
 
 export function Hero() {
+  const [chooserOpen, setChooserOpen] = useState(false);
   const scrollToOrder = () => {
     document.getElementById("order-form")?.scrollIntoView({ behavior: "smooth" });
   };
@@ -71,15 +74,17 @@ export function Hero() {
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </button>
 
-              <a
-                href={`https://wa.me/918968122246?text=${encodeURIComponent("I want to order KamaSutra Gold+")}`}
-                target="_blank"
-                rel="noopener noreferrer"
+              {chooserOpen && (
+                <WhatsAppChooser message="I want to order KamaSutra Gold+" onClose={() => setChooserOpen(false)} />
+              )}
+              <button
+                type="button"
+                onClick={() => setChooserOpen(true)}
                 className="flex items-center justify-center gap-2 px-8 py-4 bg-[#25D366] text-white font-bold rounded-xl text-lg shadow-xl hover:bg-[#20bd5a] hover:scale-[1.03] active:scale-[0.97] transition-all"
               >
                 <MessageCircle className="w-5 h-5" />
                 👉 WhatsApp Order
-              </a>
+              </button>
             </div>
 
             <div className="flex flex-wrap gap-6 text-sm font-medium text-secondary-foreground/80">

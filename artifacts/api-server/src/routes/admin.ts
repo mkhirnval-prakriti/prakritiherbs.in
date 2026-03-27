@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, ordersTable, adminDownloadsTable, abandonedCartsTable, appSettingsTable } from "@workspace/db";
+import { db, pool, ordersTable, adminDownloadsTable, abandonedCartsTable, appSettingsTable } from "@workspace/db";
 import { eq, desc, like, and, gte, lte, sql, or, inArray } from "drizzle-orm";
 import { requireAdmin, requireSuperAdmin, signAdminToken, type AdminRole } from "../middlewares/requireAdmin";
 import { getSettings, saveSettingsBatch, getSetting } from "./settings";
@@ -137,16 +137,16 @@ router.get("/admin/orders", requireAdmin, async (req, res) => {
       deliveredCount: sql<number>`COUNT(*) FILTER (WHERE status = 'Delivered')`,
     }).from(ordersTable);
 
-    const phoneList = orders.map((o) => o.phone);
+    const phoneList = [...new Set(orders.map((o) => o.phone))];
     let repeatPhones = new Set<string>();
     if (phoneList.length > 0) {
-      /* Use Drizzle inArray to avoid the PostgreSQL ANY() array syntax issue */
-      const rep = await db.select({ phone: ordersTable.phone })
-        .from(ordersTable)
-        .where(inArray(ordersTable.phone, phoneList))
-        .groupBy(ordersTable.phone)
-        .having(sql`COUNT(*) > 1`);
-      rep.forEach((r) => repeatPhones.add(r.phone));
+      /* Use pool.query with IN ($1,$2,...) to avoid Drizzle inArray ANY() bug */
+      const placeholders = phoneList.map((_, i) => `$${i + 1}`).join(", ");
+      const rep = await pool.query<{ phone: string }>(
+        `SELECT phone FROM orders WHERE phone IN (${placeholders}) GROUP BY phone HAVING COUNT(*) > 1`,
+        phoneList
+      );
+      rep.rows.forEach((r) => repeatPhones.add(r.phone));
     }
 
     const enrichedOrders = orders.map((o) => ({ ...o, isRepeat: repeatPhones.has(o.phone) }));
