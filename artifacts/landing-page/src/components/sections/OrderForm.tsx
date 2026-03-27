@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, ShieldCheck, Truck, Package, X, Loader2 } from "lucide-react";
 import { cleanMobile, sendLeadToCRM, DuplicateOrderError, hasOrderedToday } from "@/lib/crm";
+import { fireLead, fireInitiateCheckout, markPaymentInitiated } from "@/lib/pixel";
 
 const GOOGLE_SHEET_URL =
   "https://script.google.com/macros/s/AKfycbyh89OCWVJJePou7B73Q0H2mJBzlWewT4YORz0QF0U2AVb1QvkKLp-h0_MjveBxc_2Txw/exec";
@@ -157,8 +158,8 @@ export function OrderForm() {
     );
     window.open(`https://wa.me/918968122246?text=${msg}`, "_blank");
 
-    // Fire Meta Pixel Lead event
-    try { (window as any).fbq?.("track", "Lead"); } catch (_) {}
+    // Fire Meta Pixel Lead event (COD order confirmed)
+    fireLead({ name: name.trim(), phone: mobile });
 
     setLoading(false);
     setShowSuccess(true);
@@ -197,8 +198,9 @@ export function OrderForm() {
 
     sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "Online Attempt");
 
-    // Fire Meta Pixel Lead event on Pay Now intent
-    try { (window as any).fbq?.("track", "Lead"); } catch (_) {}
+    // Fire Meta Pixel InitiateCheckout + mark payment intent for Purchase detection on return
+    fireInitiateCheckout({ quantity: parseInt(quantity, 10) });
+    markPaymentInitiated();
 
     // Open payment gateway synchronously within the click handler (avoids popup blockers)
     console.log("[PayNow] Opening Cashfree URL →", CASHFREE_URL);

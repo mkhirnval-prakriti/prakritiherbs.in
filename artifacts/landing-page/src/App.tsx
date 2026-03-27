@@ -1,4 +1,5 @@
-import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
+import { useEffect, useRef } from "react";
+import { Switch, Route, Router as WouterRouter, Redirect, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,6 +8,7 @@ import Home from "@/pages/Home";
 import AdminLogin from "@/pages/admin/AdminLogin";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import { isAdminLoggedIn } from "@/lib/adminApi";
+import { firePageView, checkAndFirePurchase } from "@/lib/pixel";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -17,6 +19,30 @@ const queryClient = new QueryClient({
   },
 });
 
+/** Fires PageView on every SPA route change (after the initial one in index.html) */
+function RoutePageViewTracker() {
+  const [location] = useLocation();
+  const isFirst = useRef(true);
+  useEffect(() => {
+    if (isFirst.current) {
+      // Skip first render — index.html already fired PageView on hard load
+      isFirst.current = false;
+      return;
+    }
+    // Fire on every subsequent client-side navigation
+    firePageView();
+  }, [location]);
+  return null;
+}
+
+/** Checks if user returned from Cashfree after payment and fires Purchase */
+function PurchaseReturnDetector() {
+  useEffect(() => {
+    checkAndFirePurchase();
+  }, []);
+  return null;
+}
+
 function ProtectedAdmin() {
   if (!isAdminLoggedIn()) {
     return <Redirect to="/admin/login" />;
@@ -26,13 +52,17 @@ function ProtectedAdmin() {
 
 function Router() {
   return (
-    <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/admin" component={() => <Redirect to="/admin/login" />} />
-      <Route path="/admin/login" component={AdminLogin} />
-      <Route path="/admin/dashboard" component={ProtectedAdmin} />
-      <Route component={NotFound} />
-    </Switch>
+    <>
+      <RoutePageViewTracker />
+      <PurchaseReturnDetector />
+      <Switch>
+        <Route path="/" component={Home} />
+        <Route path="/admin" component={() => <Redirect to="/admin/login" />} />
+        <Route path="/admin/login" component={AdminLogin} />
+        <Route path="/admin/dashboard" component={ProtectedAdmin} />
+        <Route component={NotFound} />
+      </Switch>
+    </>
   );
 }
 
