@@ -1,8 +1,23 @@
-# Workspace
+# KamaSutra Gold+ — Prakriti Herbs Admin Platform
 
 ## Overview
 
+Mobile-first Ayurvedic product landing page + full Shopify-grade Admin Panel for KamaSutra Gold+ by Prakriti Herbs (prakritiherbs.in). Price: ₹999. Contacts: +91 89681 22246 / +91 89681 22276.
+
 pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+
+## Admin Panel
+
+Located at `/admin`. Login credentials: `prakriti_admin` / `Prakriti@2026!`
+
+**7-page sidebar navigation:**
+1. **Home** — Stats overview, revenue chart, top cities, conversion rates
+2. **Orders** — Full table with bulk actions, Shiprocket/India Post shipping, WhatsApp notify, GST invoice, repeat customer badges, payment status
+3. **Abandoned Carts** — Recovery CRM with WhatsApp send, status tracking
+4. **Analytics** — India sales map, top-10 cities revenue, payment method pie, hourly chart, conversion stats
+5. **Marketing** — Customer reviews management (add/approve/edit/reject/delete)
+6. **Settings** — Shiprocket, WhatsApp API, Razorpay, Cashfree, Business/GST/Invoice info
+7. **Downloads** — Export history
 
 ## Stack
 

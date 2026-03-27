@@ -13,6 +13,11 @@ export const ordersTable = pgTable("orders", {
   product: text("product").notNull(),
   source: text("source").notNull().default("COD"),
   status: text("status").notNull().default("New"),
+  paymentMethod: text("payment_method").default("COD"),
+  paymentId: text("payment_id"),
+  paymentStatus: text("payment_status").default("pending"),
+  trackingId: text("tracking_id"),
+  courier: text("courier"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

@@ -21,3 +21,5 @@ export * from "./orders";
 export * from "./downloads";
 export * from "./pageviews";
 export * from "./abandoned-carts";
+export * from "./reviews";
+export * from "./app-settings";
