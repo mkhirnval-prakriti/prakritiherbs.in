@@ -2,9 +2,40 @@ import { useState, useEffect, useCallback } from "react";
 import { fetchAnalytics, type AnalyticsData } from "@/lib/adminApi";
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ScatterChart, Scatter, ZAxis, Legend,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
-import { RefreshCw, TrendingUp, MapPin, Clock, Globe, Eye, AlertCircle, ArrowUpRight, ShoppingCart, CreditCard } from "lucide-react";
+import { RefreshCw, TrendingUp, MapPin, Clock, Globe, Eye, AlertCircle, ArrowUpRight, ShoppingCart, CreditCard, ChevronDown } from "lucide-react";
+
+type Preset = "30min" | "1h" | "today" | "yesterday" | "7d" | "30d" | "custom";
+const PRESETS: { label: string; value: Preset }[] = [
+  { label: "Last 30 Min", value: "30min" },
+  { label: "Last 1 Hour", value: "1h" },
+  { label: "Today", value: "today" },
+  { label: "Yesterday", value: "yesterday" },
+  { label: "Last 7 Days", value: "7d" },
+  { label: "Last 30 Days", value: "30d" },
+  { label: "Custom Range", value: "custom" },
+];
+
+function presetToRange(preset: Preset): { from: string; to: string } {
+  const now = new Date();
+  const ist = (d: Date) => d.toISOString();
+  const todayIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+  todayIST.setHours(0, 0, 0, 0);
+  switch (preset) {
+    case "30min": return { from: ist(new Date(now.getTime() - 30 * 60000)), to: ist(now) };
+    case "1h": return { from: ist(new Date(now.getTime() - 60 * 60000)), to: ist(now) };
+    case "today": return { from: ist(todayIST), to: ist(now) };
+    case "yesterday": {
+      const s = new Date(todayIST); s.setDate(s.getDate() - 1);
+      const e = new Date(todayIST);
+      return { from: ist(s), to: ist(e) };
+    }
+    case "7d": return { from: ist(new Date(now.getTime() - 7 * 86400000)), to: ist(now) };
+    case "30d": return { from: ist(new Date(now.getTime() - 30 * 86400000)), to: ist(now) };
+    default: return { from: ist(new Date(now.getTime() - 30 * 86400000)), to: ist(now) };
+  }
+}
 
 const G = "#1B5E20";
 const GOLD = "#C9A14A";
@@ -67,8 +98,25 @@ function IndiaSalesMap({ cities }: { cities: { city: string; count: number; reve
 export function AdminAnalytics() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
-  const load = useCallback(() => { setLoading(true); fetchAnalytics().then(setData).catch(() => {}).finally(() => setLoading(false)); }, []);
-  useEffect(() => { load(); }, [load]);
+  const [preset, setPreset] = useState<Preset>("30d");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  const load = useCallback((p: Preset = "30d", cf?: string, ct?: string) => {
+    setLoading(true);
+    const range = p === "custom" && cf && ct
+      ? { from: new Date(cf).toISOString(), to: new Date(ct).toISOString() }
+      : presetToRange(p);
+    fetchAnalytics(range).then(setData).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(preset); }, [load, preset]);
+
+  function applyPreset(p: Preset) { setPreset(p); setDropdownOpen(false); if (p !== "custom") load(p); }
+  function applyCustom() { setDropdownOpen(false); load("custom", customFrom, customTo); }
+
+  const selectedLabel = PRESETS.find((p) => p.value === preset)?.label ?? "Last 30 Days";
 
   if (loading) return <div className="flex items-center justify-center h-64"><RefreshCw className="w-6 h-6 animate-spin text-gray-400" /></div>;
   if (!data) return <div className="text-center text-gray-400 py-16"><AlertCircle className="w-10 h-10 mx-auto mb-2 opacity-30" /><p>Could not load analytics</p></div>;
@@ -79,12 +127,61 @@ export function AdminAnalytics() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <h1 className="text-xl font-bold text-gray-900">Analytics</h1>
-        <button onClick={load} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600">
-          <RefreshCw className="w-3.5 h-3.5" /> Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <button onClick={() => setDropdownOpen((v) => !v)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 shadow-sm">
+              <Clock className="w-3.5 h-3.5 text-gray-400" /> {selectedLabel} <ChevronDown className="w-3 h-3 text-gray-400" />
+            </button>
+            {dropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setDropdownOpen(false)} />
+                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 py-1 min-w-[180px]">
+                  {PRESETS.filter((p) => p.value !== "custom").map((p) => (
+                    <button key={p.value} onClick={() => applyPreset(p.value)}
+                      className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 ${preset === p.value ? "font-bold text-green-800 bg-green-50" : "text-gray-700"}`}>
+                      {p.label}
+                    </button>
+                  ))}
+                  <div className="border-t border-gray-100 mt-1 pt-1 px-3 py-2">
+                    <p className="text-xs font-semibold text-gray-500 mb-1.5">Custom Range</p>
+                    <div className="flex flex-col gap-1">
+                      <input type="datetime-local" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)}
+                        className="w-full text-xs px-2 py-1 border border-gray-200 rounded-lg focus:outline-none" />
+                      <input type="datetime-local" value={customTo} onChange={(e) => setCustomTo(e.target.value)}
+                        className="w-full text-xs px-2 py-1 border border-gray-200 rounded-lg focus:outline-none" />
+                      <button onClick={applyCustom} disabled={!customFrom || !customTo}
+                        className="mt-1 px-3 py-1 text-xs font-bold rounded-lg bg-green-800 text-white disabled:opacity-40 hover:bg-green-700">
+                        Apply
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+          <button onClick={() => load(preset, customFrom, customTo)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600">
+            <RefreshCw className="w-3.5 h-3.5" /> Refresh
+          </button>
+        </div>
       </div>
+
+      {(data.periodOrderCount > 0 || true) && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl p-4 border bg-green-50 border-green-200 text-green-800 flex flex-col gap-1">
+            <p className="text-xs font-semibold uppercase opacity-70">Orders ({selectedLabel})</p>
+            <p className="text-2xl font-bold">{data.periodOrderCount.toLocaleString()}</p>
+            <p className="text-xs opacity-60">paid + COD in period</p>
+          </div>
+          <div className="rounded-xl p-4 border bg-amber-50 border-amber-200 text-amber-800 flex flex-col gap-1">
+            <p className="text-xs font-semibold uppercase opacity-70">Revenue ({selectedLabel})</p>
+            <p className="text-2xl font-bold">₹{data.periodRevenue.toLocaleString()}</p>
+            <p className="text-xs opacity-60">gross revenue in period</p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[

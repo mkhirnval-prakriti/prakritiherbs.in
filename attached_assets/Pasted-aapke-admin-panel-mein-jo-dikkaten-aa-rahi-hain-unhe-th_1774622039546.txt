@@ -1,0 +1,47 @@
+aapke admin panel mein jo dikkaten aa rahi hain, unhe theek karne ke liye main ek naya aur mazboot Master Prompt taiyaar kiya hai. Aap ise Replit AI ko den, taaki wo in saari galtiyon (bugs) ko ek saath fix kar sake:
+
+🚀 Master Prompt to Fix Admin Panel & Orders (AI ko ye dein)
+Task: Fix critical bugs in the Admin Panel and enhance Order/Abandoned Cart features.
+
+1. Fix "Failed to Load Orders":
+
+When clicking the 'Orders' tab, it shows "Failed to load orders".
+
+Action: Check the /api/orders route and the database query. Ensure that the recently added visitorSource column is not causing a data type mismatch or a syntax error in the fetch request.
+
+2. Fix Abandoned Cart & Recovery:
+
+Recovery Trigger: When I click 'Recover' on an Abandoned Cart item, it should automatically move/convert that entry into the Main Orders Table.
+
+Notification Reset: I see a "1" on the Abandoned Cart icon even after viewing it. Ensure the "Seen/Read" status updates correctly in the DB so the notification badge disappears.
+
+Download Feature: Add an "Export Abandoned Carts" button (Excel/CSV) inside the Abandoned Cart section.
+
+3. Fix & Enhance Analytics:
+
+Custom Filters: Add a dropdown in the Analytics/Dashboard to filter data by: Last 30 Mins, Last 1 Hour, Today, Yesterday, Last 7 Days, and Custom Date Range.
+
+Show a clear count of orders received for each selected time period.
+
+4. Orders Table & Date-Wise Download:
+
+Download Options: On the Orders page, add a "Download/Export" button with a Date Filter. I should be able to select a "Start Date" and "End Date" to download orders for a specific month or period.
+
+Ensure the exported Excel file has the "SOURCE" column.
+
+5. UI/UX Consistency:
+
+Ensure all buttons (Recover, Download, Filter) are mobile-friendly and clearly visible.
+
+💡 In badlavon se aapko kya fayda hoga? (Samjhiye)
+Orders Visible (Orders dikhne lagenge):
+Abhi jo "Failed to load" aa raha hai, wo isliye hai kyunki naye 'Source' column ne purane database query ko disturb kar diya hai. AI ise sahi kar dega aur aapko saare orders dikhne lagenge.
+
+Abandoned Cart Recovery (Adhoore orders ko pura karna):
+Ab agar koi customer cart chhod kar jata hai, toh aap 'Recover' par click karenge aur wo apne aap aapki main Order List mein shamil ho jayega. Saath hi, jo "1" likha aa raha hai, wo dekhne ke baad hat jayega.
+
+Smart Analytics (Time-wise data):
+Aapko har minute ka hisab milega. Aap dekh payenge ki pichle aadhe ghante mein kitne orders aaye hain. Isse aapko apne Facebook/WhatsApp ads ki performance turant pata chal jayegi.
+
+Date-Wise Excel Download (Purana data nikalna):
+Ab aapko poori sheet download karne ki zaroorat nahi. Aap tarikh (Date) chun sakte hain—jaise 1 March se 31 March tak—aur sirf usi mahine ka data Excel mein bahar aa jayega.

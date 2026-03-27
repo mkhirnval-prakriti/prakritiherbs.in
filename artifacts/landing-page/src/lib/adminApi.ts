@@ -98,6 +98,8 @@ export interface AnalyticsData {
   abandonedStats: { total: number; new: number; called: number; recovered: number };
   repeatCustomers: number;
   paymentStats: { cod: number; razorpay: number; cashfree: number; paid: number };
+  periodOrderCount: number;
+  periodRevenue: number;
 }
 
 export interface AbandonedCart {
@@ -198,10 +200,42 @@ export async function updateAbandonedCartStatus(id: number, status: string): Pro
   await authFetch(`/admin/abandoned-carts/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) });
 }
 
-export async function fetchAnalytics(): Promise<AnalyticsData> {
-  const res = await authFetch("/admin/analytics");
+export async function fetchAnalytics(params: { from?: string; to?: string } = {}): Promise<AnalyticsData> {
+  const qs = new URLSearchParams();
+  if (params.from) qs.set("from", params.from);
+  if (params.to) qs.set("to", params.to);
+  const res = await authFetch(`/admin/analytics?${qs}`);
   if (!res.ok) throw new Error("Failed to fetch analytics");
   return res.json();
+}
+
+export async function recoverAbandonedCart(id: number): Promise<{ ok: boolean; order: Order }> {
+  const res = await authFetch(`/admin/abandoned-carts/${id}/recover`, { method: "POST" });
+  if (!res.ok) { const e = await res.json() as { error: string }; throw new Error(e.error); }
+  return res.json();
+}
+
+export function exportAbandonedCartsToXLSX(carts: AbandonedCart[], filename: string): void {
+  const rows = carts.map((c) => ({
+    Date: new Date(c.createdAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
+    Name: c.name, Mobile: c.phone,
+    Address: c.address ?? "", Pincode: c.pincode ?? "",
+    Status: c.recoveryStatus,
+  }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Abandoned Carts");
+  XLSX.writeFile(wb, filename);
+}
+
+export function exportAbandonedCartsToCSV(carts: AbandonedCart[], filename: string): void {
+  const headers = ["Date", "Name", "Mobile", "Address", "Pincode", "Status"];
+  const rows = carts.map((c) => [
+    new Date(c.createdAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
+    c.name, c.phone, c.address ?? "", c.pincode ?? "", c.recoveryStatus,
+  ]);
+  const csv = [headers, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
 }
 
 export async function fetchReviews(params: { status?: string; page?: number } = {}): Promise<{ reviews: Review[]; total: number; stats: { total: number; pending: number; approved: number; avgRating: number } }> {

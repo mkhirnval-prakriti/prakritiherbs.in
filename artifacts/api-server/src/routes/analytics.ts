@@ -26,18 +26,23 @@ async function safeQuery<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
 
 router.get("/admin/analytics", requireAdmin, async (req, res) => {
   try {
+    const { from: fromParam, to: toParam } = req.query as { from?: string; to?: string };
     const now = new Date();
     const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
     const yesterdayStart = new Date(todayStart); yesterdayStart.setDate(yesterdayStart.getDate() - 1);
     const last7Start = new Date(todayStart); last7Start.setDate(last7Start.getDate() - 6);
     const last30Start = new Date(todayStart); last30Start.setDate(last30Start.getDate() - 29);
 
+    /* Period-based order count for the analytics filter */
+    const periodFrom = fromParam ? new Date(fromParam) : last30Start;
+    const periodTo = toParam ? new Date(toParam) : now;
+
     const emptyRows = { rows: [] as Record<string, unknown>[] };
 
     const [
       ordersByDay, ordersByHour, ordersBySource,
       visitorStats, conversionData, topCitiesRevenue,
-      abandonedStats, repeatCustomers, paymentStats,
+      abandonedStats, repeatCustomers, paymentStats, periodOrderResult,
     ] = await Promise.all([
       safeQuery(() => db.execute(sql`
         SELECT TO_CHAR(created_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') as date, COUNT(*) as count
@@ -102,6 +107,10 @@ router.get("/admin/analytics", requireAdmin, async (req, res) => {
           COUNT(*) FILTER (WHERE payment_status = 'success') as paid
         FROM orders
       `), { rows: [{ cod: 0, razorpay: 0, cashfree: 0, paid: 0 }] }),
+      safeQuery(() => db.execute(sql`
+        SELECT COUNT(*) as count, COALESCE(SUM(999 * quantity), 0) as revenue
+        FROM orders WHERE created_at >= ${periodFrom} AND created_at <= ${periodTo}
+      `), { rows: [{ count: 0, revenue: 0 }] }),
     ]);
 
     const visRow = (visitorStats.rows[0] ?? {}) as Record<string, unknown>;
@@ -109,6 +118,7 @@ router.get("/admin/analytics", requireAdmin, async (req, res) => {
     const aRow = (abandonedStats.rows[0] ?? {}) as Record<string, unknown>;
     const repRow = (repeatCustomers.rows[0] ?? {}) as Record<string, unknown>;
     const payRow = (paymentStats.rows[0] ?? {}) as Record<string, unknown>;
+    const perRow = (periodOrderResult.rows[0] ?? {}) as Record<string, unknown>;
 
     const v30 = Number(convRow["visitors_30d"] ?? 0); const o30 = Number(convRow["orders_30d"] ?? 0);
     const v7 = Number(convRow["visitors_7d"] ?? 0); const o7 = Number(convRow["orders_7d"] ?? 0);
@@ -128,6 +138,8 @@ router.get("/admin/analytics", requireAdmin, async (req, res) => {
       abandonedStats: { total: Number(aRow["total"] ?? 0), new: Number(aRow["new_count"] ?? 0), called: Number(aRow["called"] ?? 0), recovered: Number(aRow["recovered"] ?? 0) },
       repeatCustomers: Number(repRow["repeat_count"] ?? 0),
       paymentStats: { cod: Number(payRow["cod"] ?? 0), razorpay: Number(payRow["razorpay"] ?? 0), cashfree: Number(payRow["cashfree"] ?? 0), paid: Number(payRow["paid"] ?? 0) },
+      periodOrderCount: Number(perRow["count"] ?? 0),
+      periodRevenue: Number(perRow["revenue"] ?? 0),
     });
   } catch (err) {
     console.error("Analytics error:", err);

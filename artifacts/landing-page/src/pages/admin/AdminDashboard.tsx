@@ -7,6 +7,7 @@ import {
 import {
   fetchOrders, fetchAnalytics, fetchDownloads, fetchAbandonedCarts, fetchSettings,
   updateAbandonedCartStatus, sendWhatsAppToCart, fetchLiveVisitors,
+  recoverAbandonedCart, exportAbandonedCartsToXLSX, exportAbandonedCartsToCSV,
   type OrderStats, type AnalyticsData, type AdminDownload, type AbandonedCart,
   clearAdminToken, isAdminLoggedIn,
 } from "@/lib/adminApi";
@@ -18,7 +19,7 @@ import {
   Home, Package, AlertTriangle, BarChart3, Star, Settings, History,
   Search, LogOut, Menu, X, RefreshCw, Phone, MapPin, MessageSquare,
   TrendingUp, ShoppingCart, Eye, ArrowUpRight, Globe, FileSpreadsheet, FileText,
-  ChevronLeft, ChevronRight, Filter, CheckCircle, Radio,
+  ChevronLeft, ChevronRight, Filter, CheckCircle, Radio, Download, CheckCheck,
 } from "lucide-react";
 
 const G = "#1B5E20";
@@ -383,6 +384,8 @@ function AbandonedCartsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [waLoading, setWaLoading] = useState<number | null>(null);
+  const [recoverLoading, setRecoverLoading] = useState<number | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
   const LIMIT = 25;
 
   const load = useCallback(async (pg = 1) => {
@@ -400,13 +403,53 @@ function AbandonedCartsPage() {
     finally { setWaLoading(null); }
   }
 
+  async function handleRecover(cart: AbandonedCart) {
+    if (!confirm(`Move "${cart.name}" (${cart.phone}) to Orders as a new COD order?`)) return;
+    setRecoverLoading(cart.id);
+    try {
+      await recoverAbandonedCart(cart.id);
+      alert(`✅ Order created for ${cart.name}! It's now visible in the Orders tab.`);
+      setCarts((prev) => prev.map((c) => c.id === cart.id ? { ...c, recoveryStatus: "Recovered" } : c));
+    } catch (err) { alert(err instanceof Error ? err.message : "Recovery failed"); }
+    finally { setRecoverLoading(null); }
+  }
+
+  async function handleExport(type: "xlsx" | "csv") {
+    setExportOpen(false); setLoading(true);
+    try {
+      const r = await fetchAbandonedCarts({ search, status: statusFilter, page: 1, limit: 5000 });
+      const now = new Date().toISOString().slice(0, 10);
+      if (type === "xlsx") exportAbandonedCartsToXLSX(r.carts, `abandoned_carts_${now}.xlsx`);
+      else exportAbandonedCartsToCSV(r.carts, `abandoned_carts_${now}.csv`);
+    } catch { alert("Export failed"); }
+    finally { setLoading(false); }
+  }
+
   const totalPages = Math.ceil(total / LIMIT);
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold text-gray-900">Abandoned Carts</h1>
-        <p className="text-xs text-gray-500 mt-0.5">Customers who filled name/phone but didn't complete the order</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Abandoned Carts</h1>
+          <p className="text-xs text-gray-500 mt-0.5">Customers who filled name/phone but didn't complete the order</p>
+        </div>
+        <div className="relative">
+          <button onClick={() => setExportOpen((v) => !v)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition-all hover:brightness-110"
+            style={{ background: `linear-gradient(135deg, ${GOLD}, #e8c96a)`, color: G }}>
+            <Download className="w-3.5 h-3.5" /> Export
+          </button>
+          {exportOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setExportOpen(false)} />
+              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 py-1 min-w-[140px]">
+                <button onClick={() => void handleExport("xlsx")} className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"><FileSpreadsheet className="w-4 h-4 text-green-600" /> Excel (.xlsx)</button>
+                <button onClick={() => void handleExport("csv")} className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"><FileText className="w-4 h-4 text-blue-600" /> CSV</button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -471,8 +514,8 @@ function AbandonedCartsPage() {
                       <RecoverySelect cartId={cart.id} current={cart.recoveryStatus} onUpdate={(id, s) => setCarts((prev) => prev.map((c) => c.id === id ? { ...c, recoveryStatus: s } : c))} />
                     </td>
                     <td className="px-3 py-3">
-                      <div className="flex items-center gap-1.5">
-                        <button onClick={() => handleWA(cart)} disabled={waLoading === cart.id} title="Send WhatsApp"
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <button onClick={() => void handleWA(cart)} disabled={waLoading === cart.id} title="Send WhatsApp"
                           className="p-1.5 rounded-lg bg-green-50 hover:bg-green-100 text-green-600 disabled:opacity-50">
                           {waLoading === cart.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <MessageSquare className="w-3.5 h-3.5" />}
                         </button>
@@ -481,6 +524,13 @@ function AbandonedCartsPage() {
                           className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-700 hover:bg-green-200">
                           WhatsApp
                         </a>
+                        {cart.recoveryStatus !== "Recovered" && (
+                          <button onClick={() => void handleRecover(cart)} disabled={recoverLoading === cart.id} title="Create order from this cart"
+                            className="flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold bg-amber-100 text-amber-800 hover:bg-amber-200 disabled:opacity-50 transition-colors">
+                            {recoverLoading === cart.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <CheckCheck className="w-3 h-3" />}
+                            Recover
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -578,9 +628,14 @@ export default function AdminDashboard() {
     e.preventDefault(); setGlobalSearch(searchInput); setPage("orders");
   }
 
+  function navigateTo(p: Page) {
+    if (p === "abandoned") setAbandonedCount(0);
+    setPage(p);
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      <Sidebar page={page} setPage={setPage} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}
+      <Sidebar page={page} setPage={navigateTo} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}
         adminUser={adminUser} onLogout={handleLogout} badgeCounts={{ abandoned: abandonedCount }} />
 
       <div className="flex-1 flex flex-col lg:ml-56 min-w-0">

@@ -140,8 +140,13 @@ router.get("/admin/orders", requireAdmin, async (req, res) => {
     const phoneList = orders.map((o) => o.phone);
     let repeatPhones = new Set<string>();
     if (phoneList.length > 0) {
-      const rep = await db.execute(sql`SELECT phone FROM orders WHERE phone = ANY(${phoneList}) GROUP BY phone HAVING COUNT(*) > 1`);
-      rep.rows.forEach((r) => { const row = r as Record<string, unknown>; repeatPhones.add(String(row["phone"] ?? "")); });
+      /* Use Drizzle inArray to avoid the PostgreSQL ANY() array syntax issue */
+      const rep = await db.select({ phone: ordersTable.phone })
+        .from(ordersTable)
+        .where(inArray(ordersTable.phone, phoneList))
+        .groupBy(ordersTable.phone)
+        .having(sql`COUNT(*) > 1`);
+      rep.forEach((r) => repeatPhones.add(r.phone));
     }
 
     const enrichedOrders = orders.map((o) => ({ ...o, isRepeat: repeatPhones.has(o.phone) }));
@@ -580,6 +585,36 @@ router.patch("/admin/abandoned-carts/:id/status", requireAdmin, async (req, res)
     if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ cart: updated });
   } catch { res.status(500).json({ error: "Failed to update" }); }
+});
+
+/* ── Convert abandoned cart → order ─────────────────────────────────────── */
+router.post("/admin/abandoned-carts/:id/recover", requireAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const [cart] = await db.select().from(abandonedCartsTable).where(eq(abandonedCartsTable.id, id)).limit(1);
+    if (!cart) { res.status(404).json({ error: "Abandoned cart not found" }); return; }
+
+    const orderId = `REC-${Date.now()}`;
+    const [order] = await db.insert(ordersTable).values({
+      orderId,
+      name: cart.name,
+      phone: cart.phone,
+      address: cart.address ?? "To be confirmed",
+      pincode: cart.pincode ?? "000000",
+      quantity: 1,
+      product: "KamaSutra Gold+ (1 Bottle)",
+      source: "COD",
+      status: "New",
+      paymentMethod: "COD",
+      visitorSource: "Recovered",
+    }).returning();
+
+    await db.update(abandonedCartsTable).set({ recoveryStatus: "Recovered", updatedAt: new Date() }).where(eq(abandonedCartsTable.id, id));
+    res.json({ ok: true, order });
+  } catch (err) {
+    req.log.error({ err }, "Failed to recover abandoned cart");
+    res.status(500).json({ error: "Failed to recover cart" });
+  }
 });
 
 export default router;
