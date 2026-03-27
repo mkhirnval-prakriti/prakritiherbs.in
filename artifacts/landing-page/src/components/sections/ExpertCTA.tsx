@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { Phone, MessageCircle } from "lucide-react";
 
-const WA_EXPERT = `https://wa.me/918968122246?text=${encodeURIComponent("मुझे KamaSutra Gold+ के बारे में जानकारी चाहिए")}`;
+const WA_EXPERT = `https://wa.me/918968122246?text=${encodeURIComponent("Namaste, I want more information about Kamasutra Gold +")}`;
 
 export function ExpertCTA() {
   return (
