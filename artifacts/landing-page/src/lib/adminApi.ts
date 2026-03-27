@@ -79,9 +79,15 @@ export interface OrderStats {
   shipped: number; cancelled: number; delivered: number;
 }
 
+export interface ReportFilters {
+  dateFrom?: string; dateTo?: string; source?: string;
+  orderType: "orders" | "abandoned"; repeatOnly?: boolean; format: "xlsx" | "csv";
+}
+
 export interface AdminDownload {
   id: number; downloadedBy: string; filename: string;
   recordCount: number; filters: string | null; downloadedAt: string;
+  parsedFilters?: ReportFilters;
 }
 
 export interface AnalyticsData {
@@ -292,8 +298,23 @@ export async function fetchDownloads(): Promise<AdminDownload[]> {
   return data.downloads;
 }
 
-export async function logDownload(filename: string, recordCount: number, filters: string): Promise<void> {
-  await authFetch("/admin/downloads", { method: "POST", body: JSON.stringify({ filename, recordCount, filters }) });
+export async function logDownload(filename: string, recordCount: number, filters: string | ReportFilters): Promise<void> {
+  const filtersStr = typeof filters === "string" ? filters : JSON.stringify(filters);
+  await authFetch("/admin/downloads", { method: "POST", body: JSON.stringify({ filename, recordCount, filters: filtersStr }) });
+}
+
+export async function deleteDownload(id: number): Promise<void> {
+  const res = await authFetch(`/admin/downloads/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Delete failed");
+}
+
+export function parseDownloadFilters(dl: AdminDownload): ReportFilters | null {
+  if (!dl.filters) return null;
+  try {
+    const parsed = JSON.parse(dl.filters) as ReportFilters;
+    if (parsed.orderType) return parsed;
+    return null;
+  } catch { return null; }
 }
 
 function extractCity(address: string): string {

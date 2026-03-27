@@ -8,7 +8,10 @@ import {
   fetchOrders, fetchAnalytics, fetchDownloads, fetchAbandonedCarts, fetchSettings,
   updateAbandonedCartStatus, sendWhatsAppToCart, fetchLiveVisitors,
   recoverAbandonedCart, exportAbandonedCartsToXLSX, exportAbandonedCartsToCSV,
+  deleteDownload, logDownload, parseDownloadFilters,
+  exportOrdersToXLSX, exportOrdersToCSV,
   type OrderStats, type AnalyticsData, type AdminDownload, type AbandonedCart,
+  type ReportFilters,
   clearAdminToken, isAdminLoggedIn,
 } from "@/lib/adminApi";
 import { AdminOrders } from "./AdminOrders";
@@ -20,6 +23,7 @@ import {
   Search, LogOut, Menu, X, RefreshCw, Phone, MapPin, MessageSquare,
   TrendingUp, ShoppingCart, Eye, ArrowUpRight, Globe, FileSpreadsheet, FileText,
   ChevronLeft, ChevronRight, Filter, CheckCircle, Radio, Download, CheckCheck,
+  Trash2, PlusCircle, Users, CalendarRange,
 } from "lucide-react";
 
 const G = "#1B5E20";
@@ -621,41 +625,366 @@ function AbandonedCartsPage() {
 }
 
 /* ─── Downloads ─── */
+const SOURCES = ["All Sources", "Facebook", "Instagram", "WhatsApp", "Direct"];
+
+function toISTDate(d: string) {
+  return new Date(d).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: true });
+}
+
+function filterLabel(f: ReportFilters): string {
+  const parts: string[] = [];
+  if (f.dateFrom || f.dateTo) parts.push(`${f.dateFrom ?? ""}–${f.dateTo ?? ""}`);
+  if (f.source && f.source !== "All Sources") parts.push(f.source);
+  if (f.repeatOnly) parts.push("Repeat only");
+  return parts.join(" | ") || "All data";
+}
+
+function getPresetDatesR(preset: string): { dateFrom: string; dateTo: string } {
+  const now = new Date();
+  const ist = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  if (preset === "today") { const t = ist(now); return { dateFrom: t, dateTo: t }; }
+  if (preset === "yesterday") {
+    const y = new Date(now); y.setDate(y.getDate() - 1); const ys = ist(y);
+    return { dateFrom: ys, dateTo: ys };
+  }
+  if (preset === "this_week") {
+    const day = now.getDay(); const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+    return { dateFrom: ist(mon), dateTo: ist(now) };
+  }
+  if (preset === "this_month") {
+    const fm = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { dateFrom: ist(fm), dateTo: ist(now) };
+  }
+  if (preset === "last_month") {
+    const fm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lm = new Date(now.getFullYear(), now.getMonth(), 0);
+    return { dateFrom: ist(fm), dateTo: ist(lm) };
+  }
+  return { dateFrom: "", dateTo: "" };
+}
+
 function DownloadsPage() {
   const [downloads, setDownloads] = useState<AdminDownload[]>([]);
   const [loading, setLoading] = useState(true);
-  useEffect(() => { fetchDownloads().then(setDownloads).finally(() => setLoading(false)); }, []);
+  const [showModal, setShowModal] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [redownloading, setRedownloading] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState<number | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+
+  /* modal filter state */
+  const [datePreset, setDatePreset] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [source, setSource] = useState("All Sources");
+  const [orderType, setOrderType] = useState<"orders" | "abandoned">("orders");
+  const [repeatOnly, setRepeatOnly] = useState(false);
+  const [format, setFormat] = useState<"xlsx" | "csv">("xlsx");
+
+  function loadHistory() { setLoading(true); fetchDownloads().then(setDownloads).finally(() => setLoading(false)); }
+  useEffect(loadHistory, []);
+
+  function handlePreset(p: string) {
+    setDatePreset(p);
+    if (p !== "all") { const { dateFrom: df, dateTo: dt } = getPresetDatesR(p); setDateFrom(df); setDateTo(dt); }
+    else { setDateFrom(""); setDateTo(""); }
+  }
+
+  async function generateReport(filters: ReportFilters, silent = false): Promise<void> {
+    const src = filters.source === "All Sources" ? undefined : filters.source;
+    const now = new Date().toLocaleString("en-CA", { timeZone: "Asia/Kolkata" }).slice(0, 10).replace(/\//g, "-");
+
+    if (filters.orderType === "orders") {
+      const r = await fetchOrders({ dateFrom: filters.dateFrom, dateTo: filters.dateTo, page: 1, limit: 5000 });
+      let orders = r.orders;
+      if (src) orders = orders.filter((o) => (o.visitorSource ?? "Direct") === src);
+      if (filters.repeatOnly) orders = orders.filter((o) => o.isRepeat);
+      const fn = `prakriti_orders_${now}.${filters.format}`;
+      if (filters.format === "xlsx") exportOrdersToXLSX(orders, fn);
+      else exportOrdersToCSV(orders, fn);
+      if (!silent) await logDownload(fn, orders.length, filters);
+      return;
+    } else {
+      const r = await fetchAbandonedCarts({ dateFrom: filters.dateFrom, dateTo: filters.dateTo, page: 1, limit: 5000 });
+      let carts = r.carts;
+      if (src) carts = carts.filter((c) => (c.source ?? "Direct") === src);
+      const fn = `prakriti_abandoned_${now}.${filters.format}`;
+      if (filters.format === "xlsx") exportAbandonedCartsToXLSX(carts, fn);
+      else exportAbandonedCartsToCSV(carts, fn);
+      if (!silent) await logDownload(fn, carts.length, filters);
+      return;
+    }
+  }
+
+  async function handleGenerate() {
+    setGenerating(true);
+    try {
+      const filters: ReportFilters = { dateFrom: dateFrom || undefined, dateTo: dateTo || undefined, source, orderType, repeatOnly: orderType === "orders" ? repeatOnly : false, format };
+      await generateReport(filters);
+      setShowModal(false);
+      loadHistory();
+    } catch (e) { alert(e instanceof Error ? e.message : "Generation failed"); }
+    finally { setGenerating(false); }
+  }
+
+  async function handleRedownload(dl: AdminDownload) {
+    const filters = parseDownloadFilters(dl);
+    if (!filters) { alert("This entry was created before structured filters were added. Cannot re-generate."); return; }
+    setRedownloading(dl.id);
+    try { await generateReport(filters, true); }
+    catch (e) { alert(e instanceof Error ? e.message : "Download failed"); }
+    finally { setRedownloading(null); }
+  }
+
+  async function handleDelete(id: number) {
+    setDeleting(id);
+    try { await deleteDownload(id); setDownloads((prev) => prev.filter((d) => d.id !== id)); }
+    catch { alert("Delete failed"); }
+    finally { setDeleting(null); setDeleteConfirm(null); }
+  }
+
+  const STAT_COLS = "px-4 py-3 text-xs";
+
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold text-gray-900">Download History</h1>
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        {loading ? <div className="flex items-center justify-center h-32"><RefreshCw className="w-5 h-5 animate-spin text-gray-400" /></div>
-          : downloads.length === 0 ? <div className="flex flex-col items-center justify-center h-32 text-gray-400"><History className="w-8 h-8 mb-2 opacity-30" /><p className="text-sm">No exports yet</p></div>
-            : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead style={{ background: "#f8f9fa" }}>
-                    <tr>{["Date & Time (IST)", "Filename", "Records", "Filters"].map((h) => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">{h}</th>)}</tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {downloads.map((dl) => (
-                      <tr key={dl.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{new Date(dl.downloadedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex items-center gap-1 text-xs font-mono ${dl.filename.endsWith(".pdf") ? "text-red-600" : dl.filename.endsWith(".xlsx") ? "text-green-700" : "text-blue-600"}`}>
-                            {dl.filename.endsWith(".pdf") ? <FileText className="w-3 h-3" /> : <FileSpreadsheet className="w-3 h-3" />}
-                            {dl.filename}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3"><span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">{dl.recordCount} rows</span></td>
-                        <td className="px-4 py-3 text-xs text-gray-500">{dl.filters ?? "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Downloads</h1>
+          <p className="text-xs text-gray-500 mt-0.5">Generate and manage your data export reports</p>
+        </div>
+        <button onClick={() => setShowModal(true)}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all hover:brightness-110 active:scale-95"
+          style={{ background: `linear-gradient(135deg, ${G}, #2e7d32)`, color: "#fff" }}>
+          <PlusCircle className="w-4 h-4" /> Generate New Report
+        </button>
       </div>
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {[
+          { label: "Total Exports", value: downloads.length, icon: <History className="w-4 h-4" />, color: "bg-white border-gray-200" },
+          { label: "Order Reports", value: downloads.filter((d) => d.filename.includes("orders")).length, icon: <Package className="w-4 h-4 text-green-600" />, color: "bg-green-50 border-green-200" },
+          { label: "Cart Reports", value: downloads.filter((d) => d.filename.includes("abandoned")).length, icon: <ShoppingCart className="w-4 h-4 text-orange-600" />, color: "bg-orange-50 border-orange-200" },
+        ].map((c) => (
+          <div key={c.label} className={`${c.color} border rounded-xl p-4 flex items-center gap-3`}>
+            <div className="p-2 bg-white rounded-lg shadow-sm border border-gray-100">{c.icon}</div>
+            <div><p className="text-xs text-gray-500">{c.label}</p><p className="text-lg font-bold text-gray-900">{c.value}</p></div>
+          </div>
+        ))}
+      </div>
+
+      {/* History table */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
+          <span className="text-sm font-semibold text-gray-700">Download History</span>
+          <button onClick={loadHistory} disabled={loading} className="p-1.5 rounded-lg hover:bg-gray-200 transition-colors">
+            <RefreshCw className={`w-3.5 h-3.5 text-gray-500 ${loading ? "animate-spin" : ""}`} />
+          </button>
+        </div>
+        {loading ? (
+          <div className="flex items-center justify-center h-32"><RefreshCw className="w-5 h-5 animate-spin text-gray-400" /></div>
+        ) : downloads.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-36 text-gray-400">
+            <History className="w-8 h-8 mb-2 opacity-30" />
+            <p className="text-sm">No reports generated yet</p>
+            <button onClick={() => setShowModal(true)} className="mt-3 text-xs font-semibold underline" style={{ color: G }}>Generate your first report</button>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead style={{ background: "#f8f9fa" }}>
+                <tr>
+                  {["Date & Time (IST)", "Report Type", "Filters", "Records", "Format", "Action", ""].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {downloads.map((dl) => {
+                  const pf = parseDownloadFilters(dl);
+                  const isXlsx = dl.filename.endsWith(".xlsx");
+                  const isCsv = dl.filename.endsWith(".csv");
+                  return (
+                    <tr key={dl.id} className="hover:bg-gray-50 transition-colors">
+                      <td className={`${STAT_COLS} text-gray-600 whitespace-nowrap`}>{toISTDate(dl.downloadedAt)}</td>
+                      <td className={STAT_COLS}>
+                        {pf ? (
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${pf.orderType === "orders" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}`}>
+                            {pf.orderType === "orders" ? <Package className="w-3 h-3" /> : <ShoppingCart className="w-3 h-3" />}
+                            {pf.orderType === "orders" ? "Orders" : "Abandoned Carts"}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400 font-mono truncate max-w-[120px] block">{dl.filename}</span>
+                        )}
+                      </td>
+                      <td className={`${STAT_COLS} text-gray-500 max-w-[200px]`}>
+                        {pf ? filterLabel(pf) : (dl.filters ?? "—")}
+                      </td>
+                      <td className={STAT_COLS}>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">{dl.recordCount} rows</span>
+                      </td>
+                      <td className={STAT_COLS}>
+                        <span className={`inline-flex items-center gap-1 text-xs font-bold ${isXlsx ? "text-green-700" : isCsv ? "text-blue-600" : "text-red-600"}`}>
+                          {isXlsx ? <FileSpreadsheet className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
+                          {isXlsx ? "XLSX" : isCsv ? "CSV" : "PDF"}
+                        </span>
+                      </td>
+                      <td className={STAT_COLS}>
+                        <button onClick={() => void handleRedownload(dl)} disabled={redownloading === dl.id || !pf}
+                          title={pf ? "Re-download this report" : "Cannot re-generate (old format)"}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all hover:brightness-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                          style={{ background: "#e8f5e9", color: G, borderColor: "#a5d6a7" }}>
+                          {redownloading === dl.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+                          Download
+                        </button>
+                      </td>
+                      <td className={STAT_COLS}>
+                        {deleteConfirm === dl.id ? (
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => void handleDelete(dl.id)} disabled={deleting === dl.id}
+                              className="px-2 py-1 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600">
+                              {deleting === dl.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : "Confirm"}
+                            </button>
+                            <button onClick={() => setDeleteConfirm(null)} className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-lg hover:bg-gray-200">Cancel</button>
+                          </div>
+                        ) : (
+                          <button onClick={() => setDeleteConfirm(dl.id)}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                            title="Delete this entry">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Generate Report Modal */}
+      {showModal && (
+        <>
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowModal(false); }}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div>
+                  <h2 className="text-base font-bold text-gray-900">Generate New Report</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">Choose filters and download your report instantly</p>
+                </div>
+                <button onClick={() => setShowModal(false)} className="p-1.5 rounded-lg hover:bg-gray-100"><X className="w-4 h-4 text-gray-500" /></button>
+              </div>
+              <div className="p-6 space-y-5">
+
+                {/* Order Type */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">Report Type</label>
+                  <div className="flex gap-3">
+                    {([["orders", "Confirmed Orders", <Package key="o" className="w-4 h-4" />], ["abandoned", "Abandoned Carts", <ShoppingCart key="a" className="w-4 h-4" />]] as const).map(([val, lbl, ico]) => (
+                      <button key={val} onClick={() => { setOrderType(val as "orders" | "abandoned"); if (val === "abandoned") setRepeatOnly(false); }}
+                        className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold border-2 transition-all ${orderType === val ? "border-green-600 bg-green-50 text-green-700" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}>
+                        {ico} {lbl}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Date Range */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
+                    <CalendarRange className="inline w-3.5 h-3.5 mr-1" />Date Range
+                  </label>
+                  <select value={datePreset} onChange={(e) => handlePreset(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white mb-2 focus:outline-none focus:ring-2 focus:ring-green-500/30">
+                    <option value="all">All Time</option>
+                    <option value="today">Today</option>
+                    <option value="yesterday">Yesterday</option>
+                    <option value="this_week">This Week</option>
+                    <option value="this_month">This Month</option>
+                    <option value="last_month">Last Month</option>
+                  </select>
+                  <div className="flex items-center gap-2">
+                    <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setDatePreset("all"); }}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30" />
+                    <span className="text-gray-400 text-xs">to</span>
+                    <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setDatePreset("all"); }}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30" />
+                  </div>
+                </div>
+
+                {/* Source/Channel */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
+                    <Globe className="inline w-3.5 h-3.5 mr-1" />Channel / Source
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {SOURCES.map((s) => (
+                      <button key={s} onClick={() => setSource(s)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${source === s ? "text-white border-transparent" : "border-gray-300 text-gray-600 hover:border-gray-400"}`}
+                        style={source === s ? { background: G } : {}}>
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Repeat Customers — only for orders */}
+                {orderType === "orders" && (
+                  <div>
+                    <label className="flex items-center gap-3 cursor-pointer select-none">
+                      <div onClick={() => setRepeatOnly((v) => !v)}
+                        className={`w-10 h-5 rounded-full transition-colors flex items-center ${repeatOnly ? "bg-green-600" : "bg-gray-300"}`}>
+                        <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform mx-0.5 ${repeatOnly ? "translate-x-5" : "translate-x-0"}`} />
+                      </div>
+                      <div>
+                        <span className="text-sm font-semibold text-gray-800 flex items-center gap-1"><Users className="w-3.5 h-3.5" /> Repeat Customers Only</span>
+                        <span className="text-xs text-gray-500">Include only customers who ordered more than once</span>
+                      </div>
+                    </label>
+                  </div>
+                )}
+
+                {/* Format */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">File Format</label>
+                  <div className="flex gap-3">
+                    {([["xlsx", "Excel (.xlsx)", <FileSpreadsheet key="x" className="w-4 h-4" />, "text-green-700 border-green-300 bg-green-50"], ["csv", "CSV", <FileText key="c" className="w-4 h-4" />, "text-blue-700 border-blue-300 bg-blue-50"]] as const).map(([val, lbl, ico, cls]) => (
+                      <button key={val} onClick={() => setFormat(val as "xlsx" | "csv")}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all ${format === val ? cls + " border-opacity-100" : "border-gray-200 text-gray-500"}`}
+                        style={format === val ? {} : {}}>
+                        {ico} {lbl}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Preview */}
+                <div className="bg-gray-50 rounded-xl p-3 border border-gray-200 text-xs text-gray-600 space-y-1">
+                  <p className="font-semibold text-gray-700">Report Preview:</p>
+                  <p>• Type: <strong>{orderType === "orders" ? "Confirmed Orders" : "Abandoned Carts"}</strong></p>
+                  <p>• Date: <strong>{dateFrom || dateTo ? `${dateFrom || "any"} → ${dateTo || "any"}` : "All Time"}</strong></p>
+                  <p>• Channel: <strong>{source}</strong>{repeatOnly ? " | Repeat customers only" : ""}</p>
+                  <p>• Format: <strong>{format.toUpperCase()}</strong></p>
+                  <p>• Columns: DATE · NAME · MOBILE · ADDRESS · CITY · PINCODE · STATE · SOURCE{orderType === "orders" ? " · AMOUNT · STATUS · REPEAT" : " · RECOVERY STATUS"}</p>
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex gap-3 pt-1">
+                  <button onClick={() => setShowModal(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200">Cancel</button>
+                  <button onClick={() => void handleGenerate()} disabled={generating}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 hover:brightness-110 disabled:opacity-60 transition-all"
+                    style={{ background: `linear-gradient(135deg, ${G}, #2e7d32)` }}>
+                    {generating ? <><RefreshCw className="w-4 h-4 animate-spin" /> Generating…</> : <><Download className="w-4 h-4" /> Generate &amp; Download</>}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

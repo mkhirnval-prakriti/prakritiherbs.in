@@ -540,9 +540,18 @@ router.post("/admin/downloads", requireAdmin, async (req, res) => {
 
 router.get("/admin/downloads", requireAdmin, async (req, res) => {
   try {
-    const downloads = await db.select().from(adminDownloadsTable).orderBy(desc(adminDownloadsTable.downloadedAt)).limit(100);
+    const downloads = await db.select().from(adminDownloadsTable).orderBy(desc(adminDownloadsTable.downloadedAt)).limit(200);
     res.json({ downloads });
   } catch { res.status(500).json({ error: "Failed to fetch downloads" }); }
+});
+
+router.delete("/admin/downloads/:id", requireAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params["id"] ?? "0", 10);
+    if (!id) return res.status(400).json({ error: "Invalid id" });
+    await db.delete(adminDownloadsTable).where(eq(adminDownloadsTable.id, id));
+    return res.json({ ok: true });
+  } catch { return res.status(500).json({ error: "Delete failed" }); }
 });
 
 /* ─── Abandoned Carts ─── */
