@@ -278,7 +278,11 @@ export function OrderForm() {
       const msg = encodeURIComponent(
         `*New COD Order:*\n*Product:* KamaSutra Gold+\n*Name:* ${name}\n*Mobile:* ${mobile}\n*Address:* ${address}${city ? `, ${city}` : ""}${state ? `, ${state}` : ""}\n*Pincode:* ${pincode}\n*Qty:* ${quantity} bottle(s)`
       );
-      try { window.open(`https://wa.me/918968122246?text=${msg}`, "_blank"); } catch { /* popup blocked is fine */ }
+      // Use location.href on mobile so OS can deep-link directly into WhatsApp app.
+      // window.open(_blank) creates a popup window which mobile OSes cannot intercept for app-switching.
+      const waUrl = `https://wa.me/918968122246?text=${msg}`;
+      const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+      if (isMobile) { window.location.href = waUrl; } else { try { window.open(waUrl, "_blank"); } catch { window.location.href = waUrl; } }
 
       fireLead({ name: name.trim(), phone: mobile, eventId: leadEventId });
       setLoading(false);
