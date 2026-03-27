@@ -1,8 +1,53 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+
+/**
+ * Prevents HTTP 206 Partial Content responses.
+ *
+ * Some reverse proxies (including Replit's) forward Range / If-Range headers
+ * from the client to the upstream app. Vite's static file server honours those
+ * headers and responds with 206, which confuses crawlers (Meta, Google, etc.)
+ * that expect the full HTML document in a single 200 response.
+ *
+ * This plugin:
+ *  1. Strips Range / If-Range from every incoming request before Vite sees them.
+ *  2. Intercepts outgoing responses to remove Accept-Ranges and downgrade any
+ *     accidental 206 status to 200 for HTML documents.
+ */
+function noRangeRequests(): Plugin {
+  function applyMiddleware(server: import("vite").PreviewServerForHook | import("vite").ViteDevServer) {
+    server.middlewares.use((req, res, next) => {
+      // Strip range headers so Vite never generates a 206
+      delete req.headers["range"];
+      delete req.headers["if-range"];
+
+      // Intercept writeHead to patch status + headers before they are sent
+      const origWriteHead = res.writeHead.bind(res) as typeof res.writeHead;
+      res.writeHead = function patchedWriteHead(statusCode: number, ...rest: unknown[]) {
+        // Downgrade 206 → 200 for HTML responses
+        const ct = res.getHeader("content-type");
+        const isHtml = typeof ct === "string" && ct.includes("text/html");
+        const effectiveStatus = statusCode === 206 && isHtml ? 200 : statusCode;
+
+        // Remove Accept-Ranges so clients know partial content is not supported
+        res.removeHeader("Accept-Ranges");
+
+        return (origWriteHead as (...a: unknown[]) => unknown)(effectiveStatus, ...rest) as ReturnType<typeof res.writeHead>;
+      };
+
+      next();
+    });
+  }
+
+  return {
+    name: "no-range-requests",
+    configureServer: applyMiddleware,
+    configurePreviewServer: applyMiddleware,
+  };
+}
 
 const rawPort = process.env.PORT;
 
@@ -29,6 +74,7 @@ if (!basePath) {
 export default defineConfig({
   base: basePath,
   plugins: [
+    noRangeRequests(),
     react(),
     tailwindcss(),
     runtimeErrorOverlay(),
