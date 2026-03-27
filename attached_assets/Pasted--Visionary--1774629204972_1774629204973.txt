@@ -1,0 +1,34 @@
+मंदीप जी, यह बहुत ही विज़नरी (Visionary) सोच है! जब आप मल्टीपल एजेंसीज के साथ काम करते हैं, तो डेटा मिक्स नहीं होना चाहिए। हम आपके एडमिन पैनल में एक "Master Marketing Dashboard" बनाएंगे जहाँ आप हर एजेंसी के लिए एक अलग 'प्रोफाइल' बना सकेंगे।
+
+इससे आपको पता चलेगा कि 'एजेंसी A' के पिक्सेल से कितने ऑर्डर आए और 'एजेंसी B' के पिक्सेल से कितने। यह आपके Prakriti Herbs के एडमिन पैनल में एक नए 'Marketing Hub' टैब के रूप में दिखेगा।
+
+🛠️ Replit AI के लिए "Multi-Agency Marketing Master" Prompt:
+इस प्रॉम्प्ट को कॉपी करें और रीप्लिट में डालें, यह आपके पूरे ट्रैकिंग सिस्टम को एडवांस बना देगा:
+
+**"Create a 'Multi-Agency Marketing Master Dashboard' in the Admin Panel (/admin) for Prakriti Herbs Private Limited:
+
+Multi-Profile Management: Instead of one field, create a system to 'Add New Agency Profile'. Each profile should have:
+
+Agency Name (e.g., Agency A, Agency B)
+
+Meta Pixel ID / Data Set ID
+
+Meta Business Manager ID
+
+Meta CAPI Access Token
+
+Google Ads Conversion ID & Label
+
+Google Analytics 4 (GA4) Measurement ID
+
+Source-Based Tracking: Each agency profile must have a unique 'Source Name' (e.g., FB-Agency-A). When an order is placed through their specific tracking, the 'SOURCE' column in the Excel/Admin should automatically show their name.
+
+Admin UI (Marketing Hub): Create a dedicated 'Marketing Hub' tab in the left sidebar. It should show a table of all active agencies with 'On/Off' toggles for their tracking pixels.
+
+Google Sheets Integration: For each agency, provide an option to add a separate 'Google Sheet Webhook URL'. This way, Agency A's data goes to their sheet, and Agency B's data goes to theirs, keeping everything isolated.
+
+CAPI & Server-Side: Implement multiple CAPI triggers. If three agencies are active, the server should send the 'Purchase' event to all three CAPI tokens simultaneously to ensure 100% attribution.
+
+Analytics Split: In the main 'Analytics' tab, add a filter: 'View by Agency'. This will show me which agency is bringing the highest 'Average Order Value (AOV)' and lowest RTO.
+
+Security & Masking: Hide the CAPI Access Tokens and Agency IDs behind a 'Password' or 'Mask' (*) so staff cannot copy the sensitive tracking data."

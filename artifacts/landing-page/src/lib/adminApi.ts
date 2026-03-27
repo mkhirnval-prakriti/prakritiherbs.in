@@ -465,6 +465,47 @@ export function exportOrdersToCSV(orders: Order[], filename = "orders.csv"): voi
   URL.revokeObjectURL(url);
 }
 
+/* ─── Agency Profiles ─── */
+export interface AgencyProfile {
+  id: string;
+  name: string;
+  sourceName: string;
+  pixelId: string;
+  businessManagerId: string;
+  capiToken: string;
+  googleAdsConversionId: string;
+  googleAdsConversionLabel: string;
+  ga4MeasurementId: string;
+  googleSheetWebhookUrl: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export async function fetchAgencies(): Promise<AgencyProfile[]> {
+  const res = await authFetch("/admin/agencies");
+  if (!res.ok) return [];
+  return res.json() as Promise<AgencyProfile[]>;
+}
+
+export async function saveAgency(data: Partial<AgencyProfile>): Promise<AgencyProfile> {
+  const res = await authFetch("/admin/agencies", { method: "POST", body: JSON.stringify(data) });
+  const d = await res.json() as AgencyProfile & { error?: string };
+  if (!res.ok) throw new Error(d.error ?? "Failed to save agency");
+  return d;
+}
+
+export async function toggleAgency(id: string): Promise<{ id: string; active: boolean }> {
+  const res = await authFetch(`/admin/agencies/${id}/toggle`, { method: "PATCH" });
+  const d = await res.json() as { id: string; active: boolean; error?: string };
+  if (!res.ok) throw new Error(d.error ?? "Failed to toggle agency");
+  return d;
+}
+
+export async function deleteAgency(id: string): Promise<void> {
+  const res = await authFetch(`/admin/agencies/${id}`, { method: "DELETE" });
+  if (!res.ok) { const d = await res.json() as { error?: string }; throw new Error(d.error ?? "Delete failed"); }
+}
+
 /* ─── Staff Management ─── */
 export interface StaffUser { id: string; username: string; role: "order_manager" | "view_only"; createdAt: string; }
 

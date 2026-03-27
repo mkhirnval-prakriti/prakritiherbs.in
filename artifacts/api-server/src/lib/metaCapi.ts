@@ -14,9 +14,9 @@
  */
 
 import { createHash } from "crypto";
+import { readAgencies } from "../routes/agencies.js";
 
-const PIXEL_ID = "1188710012812588";
-const CAPI_URL = `https://graph.facebook.com/v25.0/${PIXEL_ID}/events`;
+const DEFAULT_PIXEL_ID = "1188710012812588";
 
 /** SHA-256 hash a string (lowercase-trimmed) as required by Meta CAPI */
 function sha256(value: string): string {
@@ -68,28 +68,10 @@ export interface CAPIEventParams {
   customData?: Record<string, unknown>;
 }
 
-/**
- * Send a single event to Meta Conversions API in CRM/system mode.
- *
- * Behaviour:
- *  - Returns false and logs nothing if META_ACCESS_TOKEN is not set.
- *  - Never throws — errors are caught and logged; order flow is never blocked.
- *  - Uses action_source: "system_generated" (correct for CRM-originated events).
- *  - Omits event_source_url (only valid for action_source: "website").
- *  - Always includes custom_data.event_source and lead_event_source as
- *    required by Meta for CRM lead events.
- */
-export async function sendCapiEvent(params: CAPIEventParams): Promise<boolean> {
-  const token = process.env["META_ACCESS_TOKEN"];
-  if (!token) {
-    // CAPI is optional — client-side pixel still fires normally without this.
-    // Set META_ACCESS_TOKEN in Secrets to enable server-side event delivery.
-    return false;
-  }
-
+/** Build a CAPI event payload ready to POST */
+function buildPayload(params: CAPIEventParams, pixelId: string, token: string): { url: string; body: Record<string, unknown> } {
   const eventTime = Math.floor(Date.now() / 1000);
 
-  // ── user_data: all PII must be SHA-256 hashed ────────────────────────────
   const userData: Record<string, unknown> = {
     country: [sha256("in")],
   };
@@ -110,31 +92,24 @@ export async function sendCapiEvent(params: CAPIEventParams): Promise<boolean> {
     if (lastName)  userData["ln"] = [sha256(lastName)];
   }
 
-  // Browser-forwarded signals (not hashed — passed as-is per Meta spec)
   if (params.ipAddress) userData["client_ip_address"] = params.ipAddress;
   if (params.userAgent) userData["client_user_agent"] = params.userAgent;
   if (params.fbp)       userData["fbp"] = params.fbp;
   if (params.fbc)       userData["fbc"] = params.fbc;
 
-  // ── custom_data: CRM required fields + caller overrides ──────────────────
   const customData: Record<string, unknown> = {
-    // Required CRM identifiers per Meta's lead events specification
-    event_source:       "crm",
-    lead_event_source:  "Prakriti CRM",
-    // Product context
-    currency:           "INR",
-    value:              999,
-    content_name:       "KamaSutra Gold+",
-    // Spread caller extras (e.g. order_id, num_items)
+    event_source:      "crm",
+    lead_event_source: "Prakriti CRM",
+    currency:          "INR",
+    value:             999,
+    content_name:      "KamaSutra Gold+",
     ...(params.customData ?? {}),
   };
 
-  // ── event payload ─────────────────────────────────────────────────────────
   const eventPayload: Record<string, unknown> = {
     event_name:    params.eventName,
     event_time:    eventTime,
-    action_source: "system_generated",   // CRM / backend origin
-    // event_source_url is intentionally omitted — only valid for "website"
+    action_source: "system_generated",
     user_data:     userData,
     custom_data:   customData,
   };
@@ -142,33 +117,89 @@ export async function sendCapiEvent(params: CAPIEventParams): Promise<boolean> {
   if (params.eventId) eventPayload["event_id"] = params.eventId;
   if (params.leadId)  eventPayload["lead_id"]  = params.leadId;
 
-  const requestBody = {
-    data:         [eventPayload],
-    access_token: token,
+  return {
+    url:  `https://graph.facebook.com/v25.0/${pixelId}/events`,
+    body: { data: [eventPayload], access_token: token },
   };
+}
 
+/**
+ * Send a single event to ONE pixel/token pair.
+ * Returns false and logs nothing if token is empty.
+ */
+async function fireToPixel(
+  params: CAPIEventParams,
+  pixelId: string,
+  token: string,
+  label = "default",
+): Promise<boolean> {
+  if (!token || !pixelId) return false;
+  const { url, body } = buildPayload(params, pixelId, token);
   try {
-    const response = await fetch(CAPI_URL, {
+    const response = await fetch(url, {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify(requestBody),
+      body:    JSON.stringify(body),
     });
 
     if (!response.ok) {
       const text = await response.text();
-      console.error(`[CAPI] ${params.eventName} — HTTP ${response.status}:`, text);
+      console.error(`[CAPI][${label}] ${params.eventName} — HTTP ${response.status}:`, text);
       return false;
     }
 
     const json = (await response.json()) as { events_received?: number };
     console.log(
-      `[CAPI] ${params.eventName} sent.`,
+      `[CAPI][${label}] ${params.eventName} sent.`,
       `events_received=${json.events_received ?? "?"}`,
       params.eventId ? `event_id=${params.eventId}` : "",
     );
     return true;
   } catch (err) {
-    console.error("[CAPI] Network error:", err);
+    console.error(`[CAPI][${label}] Network error:`, err);
     return false;
   }
+}
+
+/**
+ * Send a single event to Meta Conversions API in CRM/system mode.
+ * Uses the default pixel (env META_ACCESS_TOKEN + hardcoded pixel ID).
+ *
+ * Behaviour:
+ *  - Returns false and logs nothing if META_ACCESS_TOKEN is not set.
+ *  - Never throws — errors are caught and logged; order flow is never blocked.
+ */
+export async function sendCapiEvent(params: CAPIEventParams): Promise<boolean> {
+  const token = process.env["META_ACCESS_TOKEN"];
+  if (!token) return false;
+  return fireToPixel(params, DEFAULT_PIXEL_ID, token, "default");
+}
+
+/**
+ * Fire CAPI event to ALL active agency profiles simultaneously.
+ * Also fires to the default pixel (META_ACCESS_TOKEN) if set.
+ * Uses Promise.allSettled so one agency failure never blocks others.
+ */
+export async function sendCapiToAllAgencies(params: CAPIEventParams): Promise<void> {
+  const fires: Promise<boolean>[] = [];
+
+  // 1. Default pixel (env token)
+  const envToken = process.env["META_ACCESS_TOKEN"];
+  if (envToken) {
+    fires.push(fireToPixel(params, DEFAULT_PIXEL_ID, envToken, "default"));
+  }
+
+  // 2. Active agency profiles
+  try {
+    const agencies = await readAgencies();
+    for (const agency of agencies) {
+      if (!agency.active || !agency.capiToken || !agency.pixelId) continue;
+      fires.push(fireToPixel(params, agency.pixelId, agency.capiToken, agency.name));
+    }
+  } catch (err) {
+    console.warn("[CAPI] Could not read agency profiles:", err);
+  }
+
+  if (fires.length === 0) return;
+  await Promise.allSettled(fires);
 }

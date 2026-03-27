@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, ordersTable } from "@workspace/db";
 import { CreateOrderBody } from "@workspace/api-zod";
 import { nanoid } from "nanoid";
-import { sendCapiEvent } from "../lib/metaCapi.js";
+import { sendCapiToAllAgencies } from "../lib/metaCapi.js";
 
 const router: IRouter = Router();
 
@@ -54,9 +54,9 @@ router.post("/orders", async (req, res) => {
       })
       .returning();
 
-    // Fire server-side CAPI Lead event (fire-and-forget — never blocks response)
-    // action_source: "system_generated", event_source: "crm" are set in metaCapi.ts
-    sendCapiEvent({
+    // Fire server-side CAPI Lead event to ALL active agency pixels simultaneously
+    // (fire-and-forget — never blocks response)
+    sendCapiToAllAgencies({
       eventName:  "Lead",
       eventId:    body.eventId,
       phone,
