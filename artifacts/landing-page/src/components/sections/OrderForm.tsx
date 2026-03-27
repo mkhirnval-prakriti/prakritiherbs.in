@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, ShieldCheck, Truck, Package, X, Loader2 } from "lucide-react";
 import { cleanMobile, sendLeadToCRM, DuplicateOrderError, hasOrderedToday } from "@/lib/crm";
-import { fireLead, fireInitiateCheckout, markPaymentInitiated } from "@/lib/pixel";
+import { fireLead, fireInitiateCheckout, markPaymentInitiated, generateEventId, getCookie } from "@/lib/pixel";
 
 const GOOGLE_SHEET_URL =
   "https://script.google.com/macros/s/AKfycbyh89OCWVJJePou7B73Q0H2mJBzlWewT4YORz0QF0U2AVb1QvkKLp-h0_MjveBxc_2Txw/exec";
@@ -141,13 +141,22 @@ export function OrderForm() {
       console.error("[COD] CRM failed (non-blocking):", err instanceof Error ? err.message : err);
     });
 
-    // Save to local DB (background, non-blocking)
+    // Generate unique event ID for client+server deduplication with Meta CAPI
+    const leadEventId = generateEventId();
+
+    // Save to local DB + trigger server-side CAPI Lead event (background, non-blocking)
     fetch("/api/orders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: name.trim(), phone: mobile, address: address.trim(),
         pincode: pincode.trim(), quantity: parseInt(quantity, 10), product: "KamaSutra Gold+", source: "COD",
+        // CAPI deduplication + matching fields (not validated by Zod, read separately in route)
+        eventId: leadEventId,
+        fbp: getCookie("_fbp"),
+        fbc: getCookie("_fbc"),
+        userAgent: navigator.userAgent,
+        sourceUrl: window.location.href,
       }),
     }).catch(() => {});
 
@@ -158,8 +167,8 @@ export function OrderForm() {
     );
     window.open(`https://wa.me/918968122246?text=${msg}`, "_blank");
 
-    // Fire Meta Pixel Lead event (COD order confirmed)
-    fireLead({ name: name.trim(), phone: mobile });
+    // Fire client-side Meta Pixel Lead event with same eventId for deduplication
+    fireLead({ name: name.trim(), phone: mobile, eventId: leadEventId });
 
     setLoading(false);
     setShowSuccess(true);

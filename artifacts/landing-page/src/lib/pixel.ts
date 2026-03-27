@@ -11,6 +11,35 @@ const PIXEL_ID = "1188710012812588";
 const SS_PURCHASE_KEY = "pixel_payment_initiated";
 const SS_PURCHASE_FIRED = "pixel_purchase_fired";
 
+/**
+ * Generate a unique event ID for client–server deduplication.
+ * The same ID must be passed to both the browser fbq() call and the
+ * server-side CAPI call so Meta counts them as one event, not two.
+ */
+export function generateEventId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  // Fallback for older environments
+  return `evt-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/**
+ * Read a cookie value by name from document.cookie.
+ * Returns undefined if not found or if cookies aren't accessible.
+ */
+export function getCookie(name: string): string | undefined {
+  try {
+    const match = document.cookie
+      .split(";")
+      .map((c) => c.trim())
+      .find((c) => c.startsWith(`${name}=`));
+    return match ? decodeURIComponent(match.slice(name.length + 1)) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function fbq(event: string, name: string, params?: Record<string, unknown>): void {
   try {
     const fn = (window as unknown as { fbq?: (...a: unknown[]) => void }).fbq;
@@ -28,12 +57,12 @@ export function firePageView(): void {
 }
 
 /** Fire when COD order is successfully submitted */
-export function fireLead(params?: { name?: string; phone?: string }): void {
+export function fireLead(params?: { name?: string; phone?: string; eventId?: string }): void {
   fbq("track", "Lead", {
     content_name: "KamaSutra Gold+",
     currency: "INR",
     value: 999,
-    ...(params ?? {}),
+    ...(params?.eventId ? { eventID: params.eventId } : {}),
   });
 }
 
