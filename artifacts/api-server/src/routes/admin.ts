@@ -546,14 +546,70 @@ router.get("/admin/downloads", requireAdmin, async (req, res) => {
 });
 
 /* ─── Abandoned Carts ─── */
+async function sendAbandonedCartRecoveryEmail(name: string, email: string): Promise<void> {
+  const smtpHost = process.env["SMTP_HOST"];
+  const smtpUser = process.env["SMTP_USER"];
+  const smtpPass = process.env["SMTP_PASS"];
+  const smtpPort = parseInt(process.env["SMTP_PORT"] ?? "587", 10);
+  if (!smtpHost || !smtpUser || !smtpPass) return;
+
+  const { default: nodemailer } = await import("nodemailer");
+  const transporter = nodemailer.createTransport({
+    host: smtpHost, port: smtpPort, secure: smtpPort === 465,
+    auth: { user: smtpUser, pass: smtpPass },
+  });
+
+  await transporter.sendMail({
+    from: `"Prakriti Herbs" <contact@prakritiherbs.in>`,
+    to: email,
+    subject: "आपका ऑर्डर अधूरा रह गया — KamaSutra Gold+",
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#fff;border:1px solid #e0e0e0;border-radius:12px;overflow:hidden">
+        <div style="background:#1B5E20;padding:24px 32px;text-align:center">
+          <h1 style="color:#C9A14A;margin:0;font-size:22px">Prakriti Herbs</h1>
+          <p style="color:#fff;margin:4px 0 0;font-size:13px">prakritiherbs.in</p>
+        </div>
+        <div style="padding:28px 32px">
+          <h2 style="color:#1B5E20;margin-top:0">नमस्ते ${name} जी! 🌿</h2>
+          <p style="color:#333;line-height:1.7">आपने <strong>KamaSutra Gold+</strong> का ऑर्डर शुरू किया था, लेकिन पूरा नहीं हुआ।</p>
+          <p style="color:#333;line-height:1.7">यह एक सीमित समय का ऑफर है — <strong style="color:#1B5E20">₹999</strong> में पाएं 100% Ayurvedic formula जो आपके वैवाहिक जीवन को बेहतर बनाए।</p>
+          <div style="text-align:center;margin:28px 0">
+            <a href="https://prakritiherbs.in/#order-form" style="background:linear-gradient(135deg,#C9A14A,#e8c96a);color:#1B5E20;text-decoration:none;font-weight:bold;padding:14px 36px;border-radius:10px;font-size:16px;display:inline-block">
+              👉 अभी ऑर्डर पूरा करें
+            </a>
+          </div>
+          <p style="color:#555;font-size:13px">✅ Cash on Delivery &nbsp;|&nbsp; 🚚 Free Delivery &nbsp;|&nbsp; 📦 Discreet Packaging</p>
+          <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+          <p style="color:#888;font-size:12px">किसी भी सहायता के लिए: <a href="tel:+918968122246" style="color:#1B5E20">+91 89681 22246</a></p>
+        </div>
+      </div>`,
+    text: `नमस्ते ${name} जी! आपने KamaSutra Gold+ का ऑर्डर अधूरा छोड़ा। अभी ₹999 में ऑर्डर करें: https://prakritiherbs.in/#order-form — Prakriti Herbs`,
+  });
+}
+
 router.post("/abandoned-cart", async (req, res) => {
   try {
-    const { name, phone, address, pincode, source, eventId } = req.body as { name?: string; phone?: string; address?: string; pincode?: string; source?: string; eventId?: string };
+    const { name, phone, email, address, pincode, source, eventId } = req.body as { name?: string; phone?: string; email?: string; address?: string; pincode?: string; source?: string; eventId?: string };
     if (!name || !phone) { res.status(400).json({ error: "name and phone required" }); return; }
     const cleanPhone = phone.replace(/\D/g, "").slice(-10);
+    const cleanEmail = typeof email === "string" && email.includes("@") ? email.trim().toLowerCase() : null;
     const existing = await db.select({ id: abandonedCartsTable.id }).from(abandonedCartsTable).where(eq(abandonedCartsTable.phone, cleanPhone)).limit(1);
-    if (existing.length > 0) { res.status(200).json({ ok: true, exists: true }); return; }
-    await db.insert(abandonedCartsTable).values({ name: name.trim(), phone: cleanPhone, address: address?.trim() ?? null, pincode: pincode?.trim() ?? null, source: source ?? "COD", eventId: eventId ?? null, recoveryStatus: "New" });
+    if (existing.length > 0) {
+      /* Update email if provided and not stored yet */
+      if (cleanEmail) {
+        await db.update(abandonedCartsTable).set({ email: cleanEmail, updatedAt: new Date() }).where(eq(abandonedCartsTable.phone, cleanPhone));
+      }
+      res.status(200).json({ ok: true, exists: true }); return;
+    }
+    await db.insert(abandonedCartsTable).values({ name: name.trim(), phone: cleanPhone, email: cleanEmail, address: address?.trim() ?? null, pincode: pincode?.trim() ?? null, source: source ?? "COD", eventId: eventId ?? null, recoveryStatus: "New" });
+
+    /* Auto-send recovery email in background if email provided */
+    if (cleanEmail) {
+      sendAbandonedCartRecoveryEmail(name.trim(), cleanEmail).catch((err) => {
+        console.warn("[AbandonedCart] Recovery email failed:", err?.message ?? err);
+      });
+    }
+
     res.status(201).json({ ok: true });
   } catch { res.status(200).json({ ok: false }); }
 });

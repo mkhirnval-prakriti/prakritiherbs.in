@@ -5,13 +5,17 @@ import { cleanMobile, sendLeadToCRM, DuplicateOrderError, hasOrderedToday } from
 import { fireLead, fireInitiateCheckout, markPaymentInitiated, generateEventId, getCookie } from "@/lib/pixel";
 import { getVisitorSource, startVisitorPing } from "@/lib/visitorTracking";
 
-function captureAbandonedCart(name: string, phone: string, address: string, pincode: string) {
+function captureAbandonedCart(name: string, phone: string, address: string, pincode: string, email?: string) {
   const cleanPhone = phone.replace(/\D/g, "").slice(-10);
   if (cleanPhone.length < 10) return;
   fetch("/api/abandoned-cart", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: name.trim(), phone: cleanPhone, address: address.trim() || null, pincode: pincode.trim() || null, source: "COD" }),
+    body: JSON.stringify({
+      name: name.trim(), phone: cleanPhone,
+      email: email && email.includes("@") ? email.trim() : undefined,
+      address: address.trim() || null, pincode: pincode.trim() || null, source: "COD",
+    }),
     keepalive: true,
   }).catch(() => {});
 }
@@ -105,6 +109,7 @@ function SuccessModal({ onClose }: { onClose: () => void }) {
 export function OrderForm() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
   const [pincode, setPincode] = useState("");
   const [quantity, setQuantity] = useState("1");
@@ -165,13 +170,15 @@ export function OrderForm() {
       // Generate unique event ID for client+server deduplication with Meta CAPI
       const leadEventId = generateEventId();
 
-      // Save to local DB + trigger server-side CAPI Lead event (background, non-blocking)
+      /* Save to local DB + trigger server-side CAPI Lead event (background, non-blocking)
+         Email is stored in DB only — NOT sent to CRM or Meta CAPI */
       fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(), phone: mobile, address: address.trim(),
           pincode: pincode.trim(), quantity: parseInt(quantity, 10), product: "KamaSutra Gold+", source: "COD",
+          email: email.trim() || undefined,
           visitorSource: visitorSource ?? "Direct",
           eventId: leadEventId,
           fbp: getCookie("_fbp"),
@@ -251,6 +258,7 @@ export function OrderForm() {
     setShowSuccess(false);
     setName("");
     setPhone("");
+    setEmail("");
     setAddress("");
     setPincode("");
     setQuantity("1");
@@ -356,7 +364,7 @@ export function OrderForm() {
                         onBlur={() => {
                           if (!abandonedFired.current && name.trim().length >= 2 && phone.replace(/\D/g, "").length >= 10) {
                             abandonedFired.current = true;
-                            captureAbandonedCart(name, phone, address, pincode);
+                            captureAbandonedCart(name, phone, address, pincode, email);
                           }
                         }}
                         className={`${inputClass("phone")} pl-12`}
@@ -365,6 +373,21 @@ export function OrderForm() {
                       />
                     </div>
                     {errors.phone && <p className="text-red-500 text-xs">{errors.phone}</p>}
+                  </div>
+
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-sm font-semibold text-foreground">
+                      Email ID <span className="text-muted-foreground font-normal">(Optional — for order updates)</span>
+                    </label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className={inputClass("email")}
+                      placeholder="e.g. rahul@gmail.com"
+                      autoComplete="email"
+                    />
+                    <p className="text-[11px] text-muted-foreground">Your email is used only for order updates — it will not be shared with anyone.</p>
                   </div>
 
                   <div className="space-y-1 md:col-span-2">

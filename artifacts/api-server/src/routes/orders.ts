@@ -16,6 +16,7 @@ router.post("/orders", async (req, res) => {
 
   const { name, phone, address, pincode, quantity, product } = parseResult.data;
   const body = req.body as {
+    email?: string;
     source?: string;
     visitorSource?: string;
     eventId?: string;
@@ -25,6 +26,8 @@ router.post("/orders", async (req, res) => {
   };
   const source = body.source ?? "COD";
   const visitorSource = body.visitorSource ?? "Direct";
+  /* Email is stored locally only — NEVER forwarded to CRM or Meta CAPI */
+  const email = typeof body.email === "string" && body.email.includes("@") ? body.email.trim().toLowerCase() : null;
   const orderId = `ORD-${nanoid(8).toUpperCase()}`;
 
   try {
@@ -34,6 +37,7 @@ router.post("/orders", async (req, res) => {
         orderId,
         name,
         phone,
+        email,
         address,
         pincode,
         quantity,

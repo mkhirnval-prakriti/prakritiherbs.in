@@ -502,7 +502,12 @@ function AbandonedCartsPage() {
                 {carts.map((cart, idx) => (
                   <tr key={cart.id} className={`hover:bg-orange-50/30 transition-colors ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}>
                     <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{fmtShort(cart.createdAt)}</td>
-                    <td className="px-3 py-3 font-medium text-gray-900">{cart.name}</td>
+                    <td className="px-3 py-3">
+                      <div className="font-medium text-gray-900">{cart.name}</div>
+                      {cart.email && (
+                        <div className="text-[11px] text-gray-400 font-mono truncate max-w-[140px]" title={cart.email}>{cart.email}</div>
+                      )}
+                    </td>
                     <td className="px-3 py-3">
                       <a href={`tel:+91${cart.phone}`} className="flex items-center gap-1 text-blue-600 hover:underline text-xs font-mono">
                         <Phone className="w-3 h-3" /> {cart.phone}

@@ -4,6 +4,7 @@ export const abandonedCartsTable = pgTable("abandoned_carts", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   phone: text("phone").notNull(),
+  email: text("email"),
   address: text("address"),
   pincode: text("pincode"),
   source: text("source").default("COD"),

@@ -68,7 +68,7 @@ export async function changePassword(currentPassword: string, newPassword: strin
 }
 
 export interface Order {
-  id: number; orderId: string; name: string; phone: string; address: string;
+  id: number; orderId: string; name: string; phone: string; email: string | null; address: string;
   pincode: string; quantity: number; product: string; source: string; status: string;
   paymentMethod: string | null; paymentId: string | null; paymentStatus: string | null;
   trackingId: string | null; courier: string | null; visitorSource: string | null; createdAt: string; isRepeat?: boolean;
@@ -105,7 +105,7 @@ export interface AnalyticsData {
 }
 
 export interface AbandonedCart {
-  id: number; name: string; phone: string; address: string | null; pincode: string | null;
+  id: number; name: string; phone: string; email: string | null; address: string | null; pincode: string | null;
   source: string | null; recoveryStatus: string; eventId: string | null; createdAt: string; updatedAt: string;
 }
 
@@ -331,7 +331,7 @@ export function pincodeToState(pincode: string | null | undefined): string {
 export function exportOrdersToXLSX(orders: Order[], filename = "orders.xlsx"): void {
   const rows = orders.map((o) => ({
     "Order ID": o.orderId, "Date (IST)": fmtISTForExport(o.createdAt),
-    "Name": o.name, "Mobile": o.phone, "Address": o.address, "Pincode": o.pincode,
+    "Name": o.name, "Mobile": o.phone, "Email": o.email ?? "", "Address": o.address, "Pincode": o.pincode,
     "State": pincodeToState(o.pincode),
     "Qty": o.quantity, "Amount (₹)": 999 * o.quantity,
     "Channel": o.visitorSource ?? "Direct", "Source": o.source,
@@ -376,9 +376,9 @@ export function exportSingleOrderToPDF(order: Order): void {
 }
 
 export function exportOrdersToCSV(orders: Order[], filename = "orders.csv"): void {
-  const headers = ["Order ID", "Date (IST)", "Name", "Mobile", "Address", "Pincode", "Qty", "Amount (₹)", "Channel", "Source", "Payment", "Pay Status", "Status", "Tracking", "Courier", "Repeat"];
+  const headers = ["Order ID", "Date (IST)", "Name", "Mobile", "Email", "Address", "Pincode", "Qty", "Amount (₹)", "Channel", "Source", "Payment", "Pay Status", "Status", "Tracking", "Courier", "Repeat"];
   const rows = orders.map((o) => [
-    o.orderId, fmtISTForExport(o.createdAt), `"${o.name}"`, o.phone, `"${o.address}"`,
+    o.orderId, fmtISTForExport(o.createdAt), `"${o.name}"`, o.phone, o.email ?? "", `"${o.address}"`,
     o.pincode, o.quantity, 999 * o.quantity, o.visitorSource ?? "Direct", o.source, o.paymentMethod ?? "COD",
     o.paymentStatus ?? "pending", o.status, o.trackingId ?? "", o.courier ?? "", o.isRepeat ? "Yes" : "No",
   ]);

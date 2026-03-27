@@ -500,6 +500,11 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
                               <span className="font-medium text-gray-900">{order.name}</span>
                               {order.isRepeat && <span title="Repeat Customer" className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700"><Star className="w-2.5 h-2.5" /> Repeat</span>}
                             </div>
+                            {order.email && (
+                              <div className="text-[11px] text-gray-400 font-mono truncate max-w-[140px]" title={order.email}>
+                                {order.email}
+                              </div>
+                            )}
                           </td>
                           <td className="px-3 py-3 text-gray-700 font-mono text-xs">{order.phone}</td>
                           <td className="px-3 py-3 text-gray-600 max-w-[160px] truncate text-xs" title={order.address}>{order.address}</td>
