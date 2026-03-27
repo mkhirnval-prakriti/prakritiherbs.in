@@ -4,7 +4,7 @@ import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
-import { RefreshCw, TrendingUp, MapPin, Clock, Globe, Eye, AlertCircle, ArrowUpRight, ShoppingCart, CreditCard, ChevronDown } from "lucide-react";
+import { RefreshCw, TrendingUp, MapPin, Clock, Globe, Eye, AlertCircle, ShoppingCart, ChevronDown, Filter } from "lucide-react";
 
 type Preset = "30min" | "1h" | "today" | "yesterday" | "7d" | "30d" | "custom";
 const PRESETS: { label: string; value: Preset }[] = [
@@ -42,6 +42,11 @@ const GOLD = "#C9A14A";
 const PIE_COLORS = [G, GOLD, "#2196F3", "#FF5722", "#9C27B0", "#00BCD4", "#4CAF50", "#FF9800"];
 const CITY_COLORS = ["#1B5E20", "#C9A14A", "#2196F3", "#FF5722", "#9C27B0", "#00BCD4", "#4CAF50", "#FF9800", "#795548", "#607D8B"];
 
+const SOURCE_COLORS: Record<string, string> = {
+  "Facebook": "#1877F2", "Instagram": "#E1306C", "WhatsApp": "#25D366",
+  "Direct": "#607D8B", "COD": "#FF9800", "Recovered": "#9C27B0",
+};
+
 function hourLabel(h: number) { return `${h % 12 || 12}${h < 12 ? "AM" : "PM"}`; }
 
 const CITY_COORDS: Record<string, [number, number]> = {
@@ -73,11 +78,6 @@ function IndiaSalesMap({ cities }: { cities: { city: string; count: number; reve
         <rect x="0" y="0" width="100" height="85" rx="8" fill="#e8f5e9" />
         <path d="M38,2 L45,4 L55,3 L62,6 L68,10 L70,14 L72,18 L80,22 L82,28 L80,34 L78,38 L82,44 L80,50 L78,56 L75,62 L68,68 L62,72 L56,76 L50,80 L44,78 L38,74 L32,68 L26,62 L22,56 L20,50 L22,44 L20,38 L18,32 L20,26 L22,20 L26,14 L30,10 L34,6 Z"
           fill="white" stroke="#1B5E20" strokeWidth="0.8" opacity="0.7" />
-        <path d="M45,4 L50,2 L55,3" fill="none" stroke="#1B5E20" strokeWidth="0.5" opacity="0.4" />
-        <path d="M68,10 L72,8 L76,12" fill="none" stroke="#1B5E20" strokeWidth="0.5" opacity="0.4" />
-        <path d="M22,20 L16,22 L14,28" fill="none" stroke="#1B5E20" strokeWidth="0.5" opacity="0.4" />
-        <path d="M56,76 L58,82 L54,84" fill="none" stroke="#1B5E20" strokeWidth="0.5" opacity="0.4" />
-        <path d="M44,78 L42,84 L38,82" fill="none" stroke="#1B5E20" strokeWidth="0.5" opacity="0.4" />
         {plotted.map((city, i) => {
           const r = 1.5 + (city.count / maxCount) * 4;
           return (
@@ -95,6 +95,47 @@ function IndiaSalesMap({ cities }: { cities: { city: string; count: number; reve
   );
 }
 
+/* India State Heatmap — color-coded grid of states */
+function StateHeatmap({ states }: { states: { state: string; count: number; revenue: number }[] }) {
+  if (states.length === 0) {
+    return <p className="text-xs text-gray-400 text-center py-12">No state data yet — orders with valid pincodes will appear here</p>;
+  }
+  const maxCount = Math.max(...states.map((s) => s.count), 1);
+
+  function stateColor(count: number): string {
+    const intensity = count / maxCount;
+    if (intensity === 0) return "#f3f4f6";
+    if (intensity < 0.15) return "#dcfce7";
+    if (intensity < 0.35) return "#86efac";
+    if (intensity < 0.55) return "#4ade80";
+    if (intensity < 0.75) return "#22c55e";
+    if (intensity < 0.90) return "#16a34a";
+    return "#15803d";
+  }
+  function textColor(count: number): string {
+    const intensity = count / maxCount;
+    return intensity >= 0.55 ? "#fff" : "#166534";
+  }
+
+  return (
+    <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
+      {states.map((s) => (
+        <div key={s.state}
+          className="rounded-lg p-2 text-center transition-all hover:scale-[1.03] cursor-default"
+          style={{ background: stateColor(s.count) }}
+          title={`${s.state}: ${s.count} orders, ₹${s.revenue.toLocaleString()}`}
+        >
+          <p className="text-[10px] font-bold leading-tight" style={{ color: textColor(s.count) }}>{s.state}</p>
+          <p className="text-[11px] font-extrabold mt-0.5" style={{ color: textColor(s.count) }}>{s.count}</p>
+          <p className="text-[9px] opacity-80" style={{ color: textColor(s.count) }}>₹{(s.revenue / 1000).toFixed(1)}K</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const ALL_SOURCES = ["all", "Facebook", "Instagram", "WhatsApp", "Direct", "COD"];
+
 export function AdminAnalytics() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -102,6 +143,7 @@ export function AdminAnalytics() {
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [stateSourceFilter, setStateSourceFilter] = useState("all");
 
   const load = useCallback((p: Preset = "30d", cf?: string, ct?: string) => {
     setLoading(true);
@@ -123,10 +165,25 @@ export function AdminAnalytics() {
 
   const hourlyData = Array.from({ length: 24 }, (_, h) => ({ hour: h, label: hourLabel(h), count: data.ordersByHour.find((x) => x.hour === h)?.count ?? 0 }));
   const peakHour = [...hourlyData].sort((a, b) => b.count - a.count)[0];
-  const totalRevenue = data.topCities.reduce((sum, c) => sum + c.revenue, 0) + data.ordersBySource.reduce((s, x) => s + x.count, 0) * 999;
+
+  /* State filter — filter topStates by selected source */
+  const filteredStates = stateSourceFilter === "all"
+    ? (data.topStates ?? [])
+    : (data.stateBySource ?? [])
+        .filter((r) => r.source === stateSourceFilter)
+        .reduce<{ state: string; count: number; revenue: number; topSource: string }[]>((acc, r) => {
+          const existing = acc.find((x) => x.state === r.state);
+          if (existing) { existing.count += r.count; }
+          else { acc.push({ state: r.state, count: r.count, revenue: 0, topSource: stateSourceFilter }); }
+          return acc;
+        }, [])
+        .sort((a, b) => b.count - a.count);
+
+  const topStateForSource = filteredStates[0];
 
   return (
     <div className="space-y-5">
+      {/* Header + Period filter */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h1 className="text-xl font-bold text-gray-900">Analytics</h1>
         <div className="flex items-center gap-2">
@@ -168,21 +225,21 @@ export function AdminAnalytics() {
         </div>
       </div>
 
-      {(data.periodOrderCount > 0 || true) && (
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl p-4 border bg-green-50 border-green-200 text-green-800 flex flex-col gap-1">
-            <p className="text-xs font-semibold uppercase opacity-70">Orders ({selectedLabel})</p>
-            <p className="text-2xl font-bold">{data.periodOrderCount.toLocaleString()}</p>
-            <p className="text-xs opacity-60">paid + COD in period</p>
-          </div>
-          <div className="rounded-xl p-4 border bg-amber-50 border-amber-200 text-amber-800 flex flex-col gap-1">
-            <p className="text-xs font-semibold uppercase opacity-70">Revenue ({selectedLabel})</p>
-            <p className="text-2xl font-bold">₹{data.periodRevenue.toLocaleString()}</p>
-            <p className="text-xs opacity-60">gross revenue in period</p>
-          </div>
+      {/* Period stat cards */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-xl p-4 border bg-green-50 border-green-200 text-green-800 flex flex-col gap-1">
+          <p className="text-xs font-semibold uppercase opacity-70">Orders ({selectedLabel})</p>
+          <p className="text-2xl font-bold">{data.periodOrderCount.toLocaleString()}</p>
+          <p className="text-xs opacity-60">paid + COD in period</p>
         </div>
-      )}
+        <div className="rounded-xl p-4 border bg-amber-50 border-amber-200 text-amber-800 flex flex-col gap-1">
+          <p className="text-xs font-semibold uppercase opacity-70">Revenue ({selectedLabel})</p>
+          <p className="text-2xl font-bold">₹{data.periodRevenue.toLocaleString()}</p>
+          <p className="text-xs opacity-60">gross revenue in period</p>
+        </div>
+      </div>
 
+      {/* Visitor + repeat stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: "Visitors Today", value: data.visitors.today, cls: "bg-blue-50 border-blue-200 text-blue-800", icon: <Eye className="w-4 h-4" />, sub: "page views" },
@@ -198,6 +255,7 @@ export function AdminAnalytics() {
         ))}
       </div>
 
+      {/* Conversion rates */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[{ label: "Today", d: data.conversion.today }, { label: "Last 7 Days", d: data.conversion.last7 }, { label: "Last 30 Days", d: data.conversion.last30 }].map(({ label, d }) => (
           <div key={label} className="bg-white rounded-xl border border-gray-200 p-4">
@@ -216,6 +274,7 @@ export function AdminAnalytics() {
         ))}
       </div>
 
+      {/* Daily orders chart */}
       <div className="bg-white rounded-xl border border-gray-200 p-4">
         <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2"><ShoppingCart className="w-4 h-4 text-green-600" /> Daily Orders — Last 30 Days</h3>
         <ResponsiveContainer width="100%" height={220}>
@@ -230,6 +289,7 @@ export function AdminAnalytics() {
         </ResponsiveContainer>
       </div>
 
+      {/* Hour + Payment charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <h3 className="text-sm font-bold text-gray-700 mb-1 flex items-center gap-2"><Clock className="w-4 h-4 text-orange-500" /> Orders by Hour of Day</h3>
@@ -268,6 +328,7 @@ export function AdminAnalytics() {
         </div>
       </div>
 
+      {/* City Map + City Table */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2"><MapPin className="w-4 h-4 text-red-500" /> Live Sales Map — Top Cities</h3>
@@ -324,6 +385,126 @@ export function AdminAnalytics() {
         </div>
       </div>
 
+      {/* ════════════════════════════════════════════════
+          STATE-WISE ANALYTICS SECTION
+          ════════════════════════════════════════════════ */}
+
+      {/* State Heatmap */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-green-600" /> India State Heatmap — Orders by State
+          </h3>
+          <div className="flex items-center gap-1.5 text-xs text-gray-500">
+            <span className="inline-block w-3 h-3 rounded" style={{ background: "#dcfce7" }} /> Low
+            <span className="inline-block w-3 h-3 rounded" style={{ background: "#4ade80" }} /> Mid
+            <span className="inline-block w-3 h-3 rounded" style={{ background: "#15803d" }} /> High
+          </div>
+        </div>
+        <StateHeatmap states={data.topStates ?? []} />
+        <p className="text-[10px] text-gray-400 mt-3">* State derived from delivery pincode. Orders without valid pincode are excluded.</p>
+      </div>
+
+      {/* Top States table + source filter */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-blue-600" /> Top States by Orders
+          </h3>
+          {/* Source filter */}
+          <div className="flex items-center gap-1.5">
+            <Filter className="w-3.5 h-3.5 text-gray-400" />
+            <span className="text-xs text-gray-500 font-medium">Filter by Source:</span>
+            <div className="flex gap-1 flex-wrap">
+              {ALL_SOURCES.map((src) => (
+                <button key={src}
+                  onClick={() => setStateSourceFilter(src)}
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all ${stateSourceFilter === src
+                    ? "text-white border-transparent"
+                    : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"}`}
+                  style={stateSourceFilter === src ? { background: src === "all" ? G : (SOURCE_COLORS[src] ?? G) } : {}}
+                >
+                  {src === "all" ? "All" : src}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {topStateForSource && stateSourceFilter !== "all" && (
+          <div className="mb-3 p-2.5 rounded-lg bg-green-50 border border-green-200 text-xs text-green-800 flex items-center gap-2">
+            <span className="text-base">📍</span>
+            <span><strong>{topStateForSource.state}</strong> gives the most <strong>{stateSourceFilter}</strong> orders ({topStateForSource.count} orders)</span>
+          </div>
+        )}
+
+        {filteredStates.length === 0 ? (
+          <p className="text-xs text-gray-400 text-center py-8">No data for this source filter yet</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-gray-500 border-b border-gray-100">
+                  <th className="text-left py-2 font-semibold">#</th>
+                  <th className="text-left py-2 font-semibold">State</th>
+                  <th className="text-right py-2 font-semibold">Orders</th>
+                  <th className="text-right py-2 font-semibold">Revenue</th>
+                  {stateSourceFilter === "all" && <th className="text-center py-2 font-semibold">Top Source</th>}
+                  <th className="py-2 w-20"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filteredStates.map((s, i) => {
+                  const max = filteredStates[0]?.count ?? 1;
+                  const src = stateSourceFilter === "all" ? (s as { topSource?: string }).topSource ?? "Direct" : stateSourceFilter;
+                  return (
+                    <tr key={s.state} className="hover:bg-blue-50/30">
+                      <td className="py-2 text-gray-400 font-bold">{i + 1}</td>
+                      <td className="py-2">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2 h-2 rounded-full" style={{ background: CITY_COLORS[i % CITY_COLORS.length] }} />
+                          <span className="font-medium text-gray-800">{s.state}</span>
+                        </div>
+                      </td>
+                      <td className="py-2 text-right font-bold text-gray-900">{s.count}</td>
+                      <td className="py-2 text-right font-bold text-green-700">
+                        {s.revenue > 0 ? `₹${s.revenue.toLocaleString()}` : "—"}
+                      </td>
+                      {stateSourceFilter === "all" && (
+                        <td className="py-2 text-center">
+                          <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold text-white"
+                            style={{ background: SOURCE_COLORS[src] ?? G }}>
+                            {src}
+                          </span>
+                        </td>
+                      )}
+                      <td className="py-2 pl-2">
+                        <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${(s.count / max) * 100}%`, background: CITY_COLORS[i % CITY_COLORS.length] }} />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot className="border-t border-gray-200">
+                <tr>
+                  <td colSpan={stateSourceFilter === "all" ? 4 : 3} className="py-2 text-xs text-gray-500 font-semibold">
+                    Total ({stateSourceFilter === "all" ? "all sources" : stateSourceFilter})
+                  </td>
+                  <td className="py-2 text-right font-bold text-green-800">
+                    {filteredStates.reduce((sum, s) => sum + s.count, 0)} orders
+                  </td>
+                  {stateSourceFilter === "all" && <td />}
+                  <td />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Orders by Source */}
       <div className="bg-white rounded-xl border border-gray-200 p-4">
         <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2"><Globe className="w-4 h-4 text-blue-500" /> Orders by Source</h3>
         {data.ordersBySource.length === 0 ? <p className="text-xs text-gray-400 text-center py-8">No data yet</p> : (

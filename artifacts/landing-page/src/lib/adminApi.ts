@@ -89,6 +89,8 @@ export interface AnalyticsData {
   ordersByHour: { hour: number; count: number }[];
   ordersBySource: { source: string; count: number }[];
   topCities: { city: string; count: number; revenue: number }[];
+  topStates: { state: string; count: number; revenue: number; topSource: string }[];
+  stateBySource: { state: string; source: string; count: number }[];
   visitors: { today: number; yesterday: number; last7: number; last30: number; total: number };
   conversion: {
     last30: { visitors: number; orders: number; rate: number };
@@ -302,10 +304,35 @@ export async function fetchLiveVisitors(): Promise<{ total: number; breakdown: R
   } catch { return { total: 0, breakdown: {} }; }
 }
 
+const PINCODE_STATE: Record<string, string> = {
+  "11":"Delhi","12":"Haryana","13":"Haryana","14":"Punjab","15":"Punjab","16":"Punjab",
+  "17":"Himachal Pradesh","18":"J & K","19":"J & K",
+  "20":"Uttar Pradesh","21":"Uttar Pradesh","22":"Uttar Pradesh","23":"Uttar Pradesh",
+  "24":"Uttar Pradesh","25":"Uttar Pradesh","26":"Uttar Pradesh","27":"Uttar Pradesh","28":"Uttar Pradesh",
+  "29":"Karnataka","30":"Rajasthan","31":"Rajasthan","32":"Rajasthan","33":"Rajasthan","34":"Rajasthan",
+  "35":"Andaman & Nicobar",
+  "36":"Gujarat","37":"Gujarat","38":"Gujarat","39":"Gujarat",
+  "40":"Maharashtra","41":"Maharashtra","42":"Maharashtra","43":"Maharashtra","44":"Maharashtra",
+  "45":"Madhya Pradesh","46":"Madhya Pradesh","47":"Madhya Pradesh","48":"Madhya Pradesh",
+  "49":"Chhattisgarh","50":"Telangana","51":"Telangana",
+  "52":"Andhra Pradesh","53":"Andhra Pradesh","54":"Andhra Pradesh","55":"Andhra Pradesh",
+  "56":"Karnataka","57":"Karnataka","58":"Karnataka","59":"Karnataka",
+  "60":"Tamil Nadu","61":"Tamil Nadu","62":"Tamil Nadu","63":"Tamil Nadu","64":"Tamil Nadu","65":"Tamil Nadu",
+  "66":"Kerala","67":"Kerala","68":"Kerala","69":"Kerala",
+  "70":"West Bengal","71":"West Bengal","72":"West Bengal","73":"West Bengal","74":"West Bengal",
+  "75":"Odisha","76":"Odisha","77":"Odisha","78":"Assam","79":"Northeast",
+  "80":"Bihar","81":"Bihar","82":"Bihar","83":"Jharkhand","84":"Bihar","85":"Bihar",
+};
+export function pincodeToState(pincode: string | null | undefined): string {
+  if (!pincode || pincode.length < 2 || pincode === "000000") return "—";
+  return PINCODE_STATE[pincode.slice(0, 2)] ?? "Other";
+}
+
 export function exportOrdersToXLSX(orders: Order[], filename = "orders.xlsx"): void {
   const rows = orders.map((o) => ({
     "Order ID": o.orderId, "Date (IST)": fmtISTForExport(o.createdAt),
     "Name": o.name, "Mobile": o.phone, "Address": o.address, "Pincode": o.pincode,
+    "State": pincodeToState(o.pincode),
     "Qty": o.quantity, "Amount (₹)": 999 * o.quantity,
     "Channel": o.visitorSource ?? "Direct", "Source": o.source,
     "Payment": o.paymentMethod ?? "COD", "Pay Status": o.paymentStatus ?? "pending",
