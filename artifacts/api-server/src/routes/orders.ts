@@ -21,7 +21,6 @@ router.post("/orders", async (req, res) => {
     fbp?: string;
     fbc?: string;
     userAgent?: string;
-    sourceUrl?: string;
   };
   const source = body.source ?? "COD";
   const orderId = `ORD-${nanoid(8).toUpperCase()}`;
@@ -42,23 +41,21 @@ router.post("/orders", async (req, res) => {
       })
       .returning();
 
-    // Fire server-side CAPI Lead event (fire-and-forget, never blocks response)
+    // Fire server-side CAPI Lead event (fire-and-forget — never blocks response)
+    // action_source: "system_generated", event_source: "crm" are set in metaCapi.ts
     sendCapiEvent({
-      eventName: "Lead",
-      eventId: body.eventId,
+      eventName:  "Lead",
+      eventId:    body.eventId,
       phone,
       name,
-      ipAddress: (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim()
-        ?? req.socket.remoteAddress,
-      userAgent: body.userAgent ?? (req.headers["user-agent"] as string | undefined),
-      fbp: body.fbp,
-      fbc: body.fbc,
-      sourceUrl: body.sourceUrl ?? "https://prakritiherbs.in/",
+      ipAddress:  (req.headers["x-forwarded-for"] as string | undefined)
+                    ?.split(",")[0]?.trim() ?? req.socket.remoteAddress,
+      userAgent:  body.userAgent ?? (req.headers["user-agent"] as string | undefined),
+      fbp:        body.fbp,
+      fbc:        body.fbc,
       customData: {
-        currency: "INR",
-        value: 999,
-        content_name: "KamaSutra Gold+",
         order_id: orderId,
+        num_items: quantity,
       },
     }).catch((err) => {
       req.log.warn({ err }, "[CAPI] Lead event failed (non-blocking)");
