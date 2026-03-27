@@ -506,6 +506,40 @@ export async function deleteAgency(id: string): Promise<void> {
   if (!res.ok) { const d = await res.json() as { error?: string }; throw new Error(d.error ?? "Delete failed"); }
 }
 
+export async function testAgencyConnection(id: string): Promise<{ ok: boolean; message: string }> {
+  const res = await authFetch(`/admin/agencies/${id}/test`, { method: "POST" });
+  return res.json() as Promise<{ ok: boolean; message: string }>;
+}
+
+export async function pauseAllAgencies(): Promise<{ ok: boolean; paused: number }> {
+  const res = await authFetch("/admin/agencies/pause-all", { method: "POST" });
+  return res.json() as Promise<{ ok: boolean; paused: number }>;
+}
+
+export interface CapiLogEntry { id: string; timestamp: string; agencyName: string; pixelId: string; event: string; status: "success" | "failed"; message: string; }
+export async function fetchCapiLog(): Promise<CapiLogEntry[]> {
+  const res = await authFetch("/admin/capi-log");
+  if (!res.ok) return [];
+  return res.json() as Promise<CapiLogEntry[]>;
+}
+export async function clearCapiLog(): Promise<void> {
+  await authFetch("/admin/capi-log", { method: "DELETE" });
+}
+
+export interface PendingCapiEvent { id: string; timestamp: string; agencyName: string; pixelId: string; event: string; }
+export async function fetchPendingCapi(): Promise<PendingCapiEvent[]> {
+  const res = await authFetch("/admin/capi-pending");
+  if (!res.ok) return [];
+  return res.json() as Promise<PendingCapiEvent[]>;
+}
+export async function retryCapi(id: string): Promise<{ ok: boolean; message?: string }> {
+  const res = await authFetch(`/admin/capi-pending/${id}/retry`, { method: "POST" });
+  return res.json() as Promise<{ ok: boolean; message?: string }>;
+}
+export async function dismissPendingCapi(id: string): Promise<void> {
+  await authFetch(`/admin/capi-pending/${id}`, { method: "DELETE" });
+}
+
 /* ─── Staff Management ─── */
 export interface StaffUser { id: string; username: string; role: "order_manager" | "view_only"; createdAt: string; }
 

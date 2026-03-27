@@ -1,19 +1,24 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   fetchReviews, addReview, updateReview, deleteReview,
   fetchAgencies, saveAgency, toggleAgency, deleteAgency,
-  type Review, type AgencyProfile,
+  testAgencyConnection, pauseAllAgencies,
+  fetchCapiLog, clearCapiLog, fetchPendingCapi, retryCapi, dismissPendingCapi,
+  type Review, type AgencyProfile, type CapiLogEntry, type PendingCapiEvent,
 } from "@/lib/adminApi";
 import {
   Star, Plus, RefreshCw, CheckCircle, XCircle, Edit3, Trash2, X,
   Building2, Eye, EyeOff, ToggleLeft, ToggleRight, AlertCircle, Zap, Globe,
+  Copy, Check, Wifi, WifiOff, ShieldAlert, ShieldCheck, RotateCcw,
+  Activity, Clock, AlertTriangle, Trash,
 } from "lucide-react";
 
 const G = "#1B5E20";
 const GOLD = "#C9A14A";
+const BASE_URL = "https://prakritiherbs.in";
 
 /* ──────────────────────────────────────────────
-   Shared helpers
+   Utility Components
 ────────────────────────────────────────────── */
 function StarRating({ rating, onChange }: { rating: number; onChange?: (r: number) => void }) {
   return (
@@ -27,12 +32,35 @@ function StarRating({ rating, onChange }: { rating: number; onChange?: (r: numbe
   );
 }
 
+function CopyButton({ text, label }: { text: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+  function copy() {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {
+      const el = document.createElement("textarea");
+      el.value = text; document.body.appendChild(el); el.select();
+      document.execCommand("copy"); document.body.removeChild(el);
+      setCopied(true); setTimeout(() => setCopied(false), 2000);
+    });
+  }
+  return (
+    <button type="button" onClick={copy}
+      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition-all ${copied ? "bg-green-100 text-green-700" : "bg-gray-100 hover:bg-gray-200 text-gray-600"}`}>
+      {copied ? <><Check className="w-3 h-3" /> Copied!</> : <><Copy className="w-3 h-3" /> {label ?? "Copy"}</>}
+    </button>
+  );
+}
+
 function MaskedField({ value, placeholder }: { value: string; placeholder?: string }) {
   const [show, setShow] = useState(false);
   const masked = value ? "••••••••" + value.slice(-4) : "";
   return (
     <span className="inline-flex items-center gap-1">
-      <code className="text-xs font-mono text-gray-600">{show ? value : masked || <span className="text-gray-400">{placeholder ?? "—"}</span>}</code>
+      <code className="text-xs font-mono text-gray-600">
+        {show ? value : (masked || <span className="text-gray-400">{placeholder ?? "—"}</span>)}
+      </code>
       {value && (
         <button type="button" onClick={() => setShow((s) => !s)} className="text-gray-400 hover:text-gray-600 ml-1">
           {show ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
@@ -42,137 +70,22 @@ function MaskedField({ value, placeholder }: { value: string; placeholder?: stri
   );
 }
 
-/* ──────────────────────────────────────────────
-   Review modals (unchanged)
-────────────────────────────────────────────── */
-function AddReviewModal({ onClose, onAdded }: { onClose: () => void; onAdded: (r: Review) => void }) {
-  const [form, setForm] = useState({ reviewerName: "", rating: 5, reviewText: "", phone: "", city: "", status: "approved", verified: true });
-  const [saving, setSaving] = useState(false);
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!form.reviewerName || !form.reviewText) return;
-    setSaving(true);
-    try { const r = await addReview(form); onAdded(r); onClose(); }
-    catch (err) { alert(err instanceof Error ? err.message : "Failed"); }
-    finally { setSaving(false); }
-  }
+function MarketingUrlBox({ sourceName }: { sourceName: string }) {
+  if (!sourceName) return null;
+  const url = `${BASE_URL}/?source=${sourceName}`;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between p-5 border-b border-gray-100">
-          <h3 className="font-bold text-gray-900">Add Review</h3>
-          <button onClick={onClose}><X className="w-4 h-4 text-gray-400" /></button>
-        </div>
-        <form onSubmit={submit} className="p-5 space-y-4">
-          <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">Customer Name *</label>
-            <input value={form.reviewerName} onChange={(e) => setForm({ ...form, reviewerName: e.target.value })} required placeholder="e.g. Rajesh Kumar"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30" />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">City</label>
-            <input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="e.g. Jaipur"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">Rating *</label>
-            <StarRating rating={form.rating} onChange={(r) => setForm({ ...form, rating: r })} />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">Review Text *</label>
-            <textarea value={form.reviewText} onChange={(e) => setForm({ ...form, reviewText: e.target.value })} required rows={3}
-              placeholder="What the customer said about KamaSutra Gold+..."
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30 resize-none" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-gray-600 mb-1 block">Status</label>
-              <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none">
-                <option value="approved">Approved</option>
-                <option value="pending">Pending</option>
-              </select>
-            </div>
-            <div className="flex items-end pb-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={form.verified} onChange={(e) => setForm({ ...form, verified: e.target.checked })} className="w-4 h-4 accent-green-700" />
-                <span className="text-xs font-semibold text-gray-600">Verified Purchase</span>
-              </label>
-            </div>
-          </div>
-          <div className="flex gap-2 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 px-4 py-2 rounded-lg text-sm bg-gray-100 hover:bg-gray-200 text-gray-600">Cancel</button>
-            <button type="submit" disabled={saving} className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60" style={{ background: G }}>
-              {saving ? "Adding..." : "Add Review"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-function EditReviewModal({ review, onClose, onSaved }: { review: Review; onClose: () => void; onSaved: (r: Review) => void }) {
-  const [form, setForm] = useState({ reviewerName: review.reviewerName, rating: review.rating, reviewText: review.reviewText, city: review.city ?? "", verified: review.verified ?? false });
-  const [saving, setSaving] = useState(false);
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    try { const r = await updateReview(review.id, form); onSaved(r); onClose(); }
-    catch (err) { alert(err instanceof Error ? err.message : "Failed"); }
-    finally { setSaving(false); }
-  }
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between p-5 border-b border-gray-100">
-          <h3 className="font-bold text-gray-900">Edit Review</h3>
-          <button onClick={onClose}><X className="w-4 h-4 text-gray-400" /></button>
-        </div>
-        <form onSubmit={submit} className="p-5 space-y-4">
-          <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">Customer Name</label>
-            <input value={form.reviewerName} onChange={(e) => setForm({ ...form, reviewerName: e.target.value })}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-gray-600 mb-1 block">City</label>
-              <input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
-            </div>
-            <div className="flex items-end pb-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={form.verified} onChange={(e) => setForm({ ...form, verified: e.target.checked })} className="w-4 h-4 accent-green-700" />
-                <span className="text-xs font-semibold text-gray-600">Verified</span>
-              </label>
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">Rating</label>
-            <StarRating rating={form.rating} onChange={(r) => setForm({ ...form, rating: r })} />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">Review Text</label>
-            <textarea value={form.reviewText} onChange={(e) => setForm({ ...form, reviewText: e.target.value })} rows={3}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none resize-none" />
-          </div>
-          <div className="flex gap-2 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 px-4 py-2 rounded-lg text-sm bg-gray-100 hover:bg-gray-200 text-gray-600">Cancel</button>
-            <button type="submit" disabled={saving} className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60" style={{ background: G }}>
-              {saving ? "Saving..." : "Save Changes"}
-            </button>
-          </div>
-        </form>
-      </div>
+    <div className="mt-2 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5">
+      <Globe className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+      <code className="text-xs text-blue-700 font-mono flex-1 min-w-0 truncate">{url}</code>
+      <CopyButton text={url} label="Copy Link" />
     </div>
   );
 }
 
 /* ──────────────────────────────────────────────
-   Agency modal
+   Agency Modal
 ────────────────────────────────────────────── */
-const BLANK_AGENCY: Omit<AgencyProfile, "id" | "createdAt"> = {
+const BLANK: Omit<AgencyProfile, "id" | "createdAt"> = {
   name: "", sourceName: "", pixelId: "", businessManagerId: "", capiToken: "",
   googleAdsConversionId: "", googleAdsConversionLabel: "", ga4MeasurementId: "",
   googleSheetWebhookUrl: "", active: true,
@@ -181,31 +94,41 @@ const BLANK_AGENCY: Omit<AgencyProfile, "id" | "createdAt"> = {
 function AgencyModal({ agency, onClose, onSaved }: { agency: AgencyProfile | null; onClose: () => void; onSaved: (a: AgencyProfile) => void }) {
   const isEdit = !!agency;
   const [form, setForm] = useState<Omit<AgencyProfile, "id" | "createdAt">>(
-    agency ? {
-      name: agency.name, sourceName: agency.sourceName, pixelId: agency.pixelId,
-      businessManagerId: agency.businessManagerId, capiToken: "",
-      googleAdsConversionId: agency.googleAdsConversionId,
-      googleAdsConversionLabel: agency.googleAdsConversionLabel,
-      ga4MeasurementId: agency.ga4MeasurementId,
-      googleSheetWebhookUrl: agency.googleSheetWebhookUrl, active: agency.active,
-    } : { ...BLANK_AGENCY },
+    agency
+      ? { name: agency.name, sourceName: agency.sourceName, pixelId: agency.pixelId,
+          businessManagerId: agency.businessManagerId, capiToken: "",
+          googleAdsConversionId: agency.googleAdsConversionId,
+          googleAdsConversionLabel: agency.googleAdsConversionLabel,
+          ga4MeasurementId: agency.ga4MeasurementId,
+          googleSheetWebhookUrl: agency.googleSheetWebhookUrl, active: agency.active }
+      : { ...BLANK },
   );
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const tokenRef = useRef<HTMLInputElement>(null);
 
   function F(key: keyof typeof form) {
-    return (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [key]: e.target.value });
+    return (e: React.ChangeEvent<HTMLInputElement>) => setForm((prev) => ({ ...prev, [key]: e.target.value }));
+  }
+
+  function handlePaste(key: "capiToken" | "pixelId") {
+    return (e: React.ClipboardEvent<HTMLInputElement>) => {
+      e.preventDefault();
+      const raw = e.clipboardData.getData("text");
+      // Auto-clean: strip whitespace, invisible chars, zero-width spaces
+      const cleaned = raw.replace(/[\s\u200B-\u200D\uFEFF\u00A0]/g, "").trim();
+      setForm((prev) => ({ ...prev, [key]: cleaned }));
+    };
   }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name.trim() || !form.sourceName.trim()) { setErr("Agency Name and Source Name are required."); return; }
+    if (!form.name.trim() || !form.sourceName.trim()) { setErr("Agency Name and Source Tag are required."); return; }
     setErr(""); setSaving(true);
     try {
       const payload = isEdit ? { id: agency!.id, ...form } : form;
       const saved = await saveAgency(payload);
-      onSaved(saved);
-      onClose();
+      onSaved(saved); onClose();
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Failed to save");
     } finally { setSaving(false); }
@@ -217,7 +140,7 @@ function AgencyModal({ agency, onClose, onSaved }: { agency: AgencyProfile | nul
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
           <div>
             <h3 className="font-bold text-gray-900">{isEdit ? "Edit Agency Profile" : "Add New Agency Profile"}</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Configure tracking pixels and webhooks for this agency</p>
+            <p className="text-xs text-gray-500 mt-0.5">Token and Pixel ID are auto-cleaned when pasted</p>
           </div>
           <button onClick={onClose}><X className="w-4 h-4 text-gray-400" /></button>
         </div>
@@ -228,13 +151,16 @@ function AgencyModal({ agency, onClose, onSaved }: { agency: AgencyProfile | nul
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-semibold text-gray-600 mb-1 block">Agency Name *</label>
-                <input value={form.name} onChange={F("name")} required placeholder="e.g. Agency A"
+                <input value={form.name} onChange={F("name")} required placeholder="e.g. SARTAJ"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30" />
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-600 mb-1 block">Source Tag * <span className="text-gray-400 font-normal">(unique)</span></label>
-                <input value={form.sourceName} onChange={F("sourceName")} required placeholder="e.g. FB-Agency-A"
+                <label className="text-xs font-semibold text-gray-600 mb-1 block">Source Tag * <span className="text-gray-400 font-normal">(unique, lowercase)</span></label>
+                <input value={form.sourceName} onChange={F("sourceName")} required placeholder="e.g. sartaj"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30" />
+                {form.sourceName && (
+                  <p className="text-xs text-blue-600 mt-1 font-mono">{BASE_URL}/?source={form.sourceName}</p>
+                )}
               </div>
             </div>
           </section>
@@ -244,7 +170,8 @@ function AgencyModal({ agency, onClose, onSaved }: { agency: AgencyProfile | nul
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-semibold text-gray-600 mb-1 block">Pixel ID / Dataset ID</label>
-                <input value={form.pixelId} onChange={F("pixelId")} placeholder="e.g. 1188710012812588"
+                <input value={form.pixelId} onChange={F("pixelId")} onPaste={handlePaste("pixelId")}
+                  placeholder="e.g. 755500930920207"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none font-mono" />
               </div>
               <div>
@@ -255,16 +182,21 @@ function AgencyModal({ agency, onClose, onSaved }: { agency: AgencyProfile | nul
             </div>
             <div>
               <label className="text-xs font-semibold text-gray-600 mb-1 block">
-                CAPI Access Token {isEdit && <span className="text-gray-400 font-normal">(leave blank to keep existing)</span>}
+                CAPI Access Token {isEdit && <span className="text-gray-400 font-normal">(blank = keep existing)</span>}
+                <span className="ml-1 text-green-600 font-normal">— auto-cleaned on paste</span>
               </label>
-              <input value={form.capiToken} onChange={F("capiToken")} type="password"
-                placeholder={isEdit ? "Enter new token to replace ••••••••" : "EAAxxxxxxx..."}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none font-mono" />
+              <input ref={tokenRef} value={form.capiToken} onChange={F("capiToken")} onPaste={handlePaste("capiToken")}
+                type="text" placeholder={isEdit ? "Paste new token to replace existing" : "EAAxxxxxxx..."}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none font-mono"
+                style={{ wordBreak: "break-all" }} />
+              {form.capiToken && (
+                <p className="text-xs text-green-600 mt-1">✓ Token length: {form.capiToken.length} chars</p>
+              )}
             </div>
           </section>
 
           <section className="space-y-3">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Google</p>
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Google (Optional)</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-semibold text-gray-600 mb-1 block">Google Ads Conversion ID</label>
@@ -272,22 +204,13 @@ function AgencyModal({ agency, onClose, onSaved }: { agency: AgencyProfile | nul
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none font-mono" />
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-600 mb-1 block">Conversion Label</label>
-                <input value={form.googleAdsConversionLabel} onChange={F("googleAdsConversionLabel")} placeholder="AbCdEfGhIjK"
+                <label className="text-xs font-semibold text-gray-600 mb-1 block">GA4 Measurement ID</label>
+                <input value={form.ga4MeasurementId} onChange={F("ga4MeasurementId")} placeholder="G-XXXXXXXXXX"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none font-mono" />
               </div>
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-600 mb-1 block">GA4 Measurement ID</label>
-              <input value={form.ga4MeasurementId} onChange={F("ga4MeasurementId")} placeholder="G-XXXXXXXXXX"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none font-mono" />
-            </div>
-          </section>
-
-          <section className="space-y-3">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Google Sheet Webhook</p>
-            <div>
-              <label className="text-xs font-semibold text-gray-600 mb-1 block">Webhook URL <span className="text-gray-400 font-normal">(agency-specific sheet)</span></label>
+              <label className="text-xs font-semibold text-gray-600 mb-1 block">Google Sheet Webhook URL</label>
               <input value={form.googleSheetWebhookUrl} onChange={F("googleSheetWebhookUrl")} type="url"
                 placeholder="https://script.google.com/macros/s/..."
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
@@ -313,14 +236,26 @@ function AgencyModal({ agency, onClose, onSaved }: { agency: AgencyProfile | nul
 }
 
 /* ──────────────────────────────────────────────
-   Marketing Hub tab (agency management)
+   Marketing Hub Tab
 ────────────────────────────────────────────── */
+type TestStatus = "idle" | "testing" | "ok" | "fail";
+
 function MarketingHub() {
   const [agencies, setAgencies] = useState<AgencyProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<AgencyProfile | null | "new">(null);
   const [toggling, setToggling] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [testStatus, setTestStatus] = useState<Record<string, TestStatus>>({});
+  const [testMsg, setTestMsg] = useState<Record<string, string>>({});
+  const [pausingAll, setPausingAll] = useState(false);
+  const [cacheCleared, setCacheCleared] = useState(false);
+
+  // System Health
+  const [log, setLog] = useState<CapiLogEntry[]>([]);
+  const [pending, setPending] = useState<PendingCapiEvent[]>([]);
+  const [logLoading, setLogLoading] = useState(false);
+  const [retrying, setRetrying] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -328,7 +263,15 @@ function MarketingHub() {
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  const loadHealth = useCallback(async () => {
+    setLogLoading(true);
+    try {
+      const [l, p] = await Promise.all([fetchCapiLog(), fetchPendingCapi()]);
+      setLog(l); setPending(p);
+    } finally { setLogLoading(false); }
+  }, []);
+
+  useEffect(() => { void load(); void loadHealth(); }, [load, loadHealth]);
 
   async function handleToggle(id: string) {
     setToggling(id);
@@ -355,10 +298,63 @@ function MarketingHub() {
     });
   }
 
+  async function handleTest(id: string) {
+    setTestStatus((s) => ({ ...s, [id]: "testing" }));
+    setTestMsg((s) => ({ ...s, [id]: "" }));
+    try {
+      const result = await testAgencyConnection(id);
+      setTestStatus((s) => ({ ...s, [id]: result.ok ? "ok" : "fail" }));
+      setTestMsg((s) => ({ ...s, [id]: result.message }));
+      void loadHealth();
+    } catch {
+      setTestStatus((s) => ({ ...s, [id]: "fail" }));
+      setTestMsg((s) => ({ ...s, [id]: "Network error — check connection" }));
+    }
+  }
+
+  async function handlePauseAll() {
+    if (!confirm("Pause ALL agencies? Their pixels will stop firing until you re-activate them.")) return;
+    setPausingAll(true);
+    try {
+      const { paused } = await pauseAllAgencies();
+      setAgencies((prev) => prev.map((a) => ({ ...a, active: false })));
+      alert(`Emergency Reset complete — ${paused} agenc${paused === 1 ? "y" : "ies"} paused.`);
+    } catch { alert("Failed to pause agencies"); }
+    finally { setPausingAll(false); }
+  }
+
+  function handleClearCache() {
+    sessionStorage.clear();
+    localStorage.removeItem("admin_token");
+    setCacheCleared(true);
+    setTimeout(() => setCacheCleared(false), 3000);
+    window.location.reload();
+  }
+
+  async function handleRetry(id: string) {
+    setRetrying(id);
+    try {
+      const result = await retryCapi(id);
+      if (result.ok) {
+        setPending((prev) => prev.filter((e) => e.id !== id));
+        alert("✅ Event resent successfully to Facebook.");
+      } else {
+        alert(`❌ Retry failed: ${result.message ?? "Unknown error"}`);
+      }
+      void loadHealth();
+    } catch { alert("Retry failed"); }
+    finally { setRetrying(null); }
+  }
+
+  async function handleDismiss(id: string) {
+    await dismissPendingCapi(id);
+    setPending((prev) => prev.filter((e) => e.id !== id));
+  }
+
   const activeCount = agencies.filter((a) => a.active).length;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {modal !== null && (
         <AgencyModal
           agency={modal === "new" ? null : modal}
@@ -367,13 +363,14 @@ function MarketingHub() {
         />
       )}
 
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-bold text-gray-900">Marketing Hub</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Manage agency tracking profiles — each gets its own pixel, CAPI, and Google Sheet</p>
+          <p className="text-xs text-gray-500 mt-0.5">Manage agency tracking profiles, pixels, and CAPI connections</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={load} className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600">
+          <button onClick={load} className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600" title="Refresh">
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           </button>
           <button onClick={() => setModal("new")}
@@ -383,6 +380,7 @@ function MarketingHub() {
         </div>
       </div>
 
+      {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
         {[
           ["Total Agencies", agencies.length, "bg-white border-gray-200 text-gray-800"],
@@ -396,6 +394,7 @@ function MarketingHub() {
         ))}
       </div>
 
+      {/* Agency Cards */}
       {loading && agencies.length === 0 ? (
         <div className="flex items-center justify-center h-32 text-gray-400"><RefreshCw className="w-5 h-5 animate-spin mr-2" /> Loading...</div>
       ) : agencies.length === 0 ? (
@@ -405,95 +404,221 @@ function MarketingHub() {
           <p className="text-xs mt-1 opacity-60">Click "Add Agency" to create your first tracking profile</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {agencies.map((agency) => (
-            <div key={agency.id} className={`bg-white rounded-xl border p-4 transition-all ${agency.active ? "border-green-200" : "border-gray-200 opacity-70"}`}>
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-2">
-                    <span className="font-bold text-gray-900">{agency.name}</span>
-                    <code className="text-xs px-2 py-0.5 rounded-full font-mono" style={{ background: GOLD + "22", color: GOLD }}>
-                      source: {agency.sourceName}
-                    </code>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${agency.active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                      {agency.active ? <><Zap className="w-3 h-3" /> Active</> : "Paused"}
-                    </span>
+        <div className="space-y-4">
+          {agencies.map((agency) => {
+            const ts = testStatus[agency.id] ?? "idle";
+            const tm = testMsg[agency.id] ?? "";
+            return (
+              <div key={agency.id} className={`bg-white rounded-xl border p-4 transition-all ${agency.active ? "border-green-200" : "border-gray-200 opacity-75"}`}>
+                {/* Top row: name + status + actions */}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-2">
+                      <span className="font-bold text-gray-900 text-base">{agency.name}</span>
+                      <code className="text-xs px-2 py-0.5 rounded-full font-mono" style={{ background: GOLD + "22", color: GOLD }}>
+                        source: {agency.sourceName}
+                      </code>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${agency.active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                        {agency.active ? <><Zap className="w-3 h-3" /> Active</> : "Paused"}
+                      </span>
+                    </div>
+
+                    {/* Tracking fields */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-xs text-gray-500 mb-2">
+                      {agency.pixelId && (
+                        <div className="flex items-center gap-1">
+                          <span className="font-semibold text-gray-400 w-16 flex-shrink-0">Pixel ID</span>
+                          <MaskedField value={agency.pixelId} />
+                        </div>
+                      )}
+                      {agency.capiToken && (
+                        <div className="flex items-center gap-1">
+                          <span className="font-semibold text-gray-400 w-16 flex-shrink-0">CAPI</span>
+                          <MaskedField value={agency.capiToken} />
+                        </div>
+                      )}
+                      {agency.ga4MeasurementId && (
+                        <div className="flex items-center gap-1">
+                          <span className="font-semibold text-gray-400 w-16 flex-shrink-0">GA4</span>
+                          <code className="font-mono text-gray-600">{agency.ga4MeasurementId}</code>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Marketing URL box */}
+                    <MarketingUrlBox sourceName={agency.sourceName} />
+
+                    {/* Test result */}
+                    {ts !== "idle" && (
+                      <div className={`mt-2 flex items-start gap-2 rounded-lg px-3 py-2 text-xs ${ts === "ok" ? "bg-green-50 text-green-700" : ts === "fail" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-600"}`}>
+                        {ts === "testing" ? <RefreshCw className="w-3.5 h-3.5 animate-spin flex-shrink-0 mt-0.5" /> :
+                          ts === "ok" ? <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" /> :
+                          <ShieldAlert className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />}
+                        <span>{ts === "testing" ? "Testing connection to Facebook..." : tm}</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-xs text-gray-500">
-                    {agency.pixelId && (
-                      <div className="flex items-center gap-1">
-                        <span className="font-semibold text-gray-400 w-16 flex-shrink-0">Pixel ID</span>
-                        <MaskedField value={agency.pixelId} />
-                      </div>
-                    )}
-                    {agency.capiToken && (
-                      <div className="flex items-center gap-1">
-                        <span className="font-semibold text-gray-400 w-16 flex-shrink-0">CAPI</span>
-                        <MaskedField value={agency.capiToken} />
-                      </div>
-                    )}
-                    {agency.ga4MeasurementId && (
-                      <div className="flex items-center gap-1">
-                        <span className="font-semibold text-gray-400 w-16 flex-shrink-0">GA4</span>
-                        <code className="font-mono text-gray-600">{agency.ga4MeasurementId}</code>
-                      </div>
-                    )}
-                    {agency.googleAdsConversionId && (
-                      <div className="flex items-center gap-1">
-                        <span className="font-semibold text-gray-400 w-16 flex-shrink-0">Ads ID</span>
-                        <code className="font-mono text-gray-600">{agency.googleAdsConversionId}</code>
-                      </div>
-                    )}
-                    {agency.googleSheetWebhookUrl && (
-                      <div className="flex items-center gap-1 col-span-2">
-                        <Globe className="w-3 h-3 text-gray-400 flex-shrink-0" />
-                        <a href={agency.googleSheetWebhookUrl} target="_blank" rel="noreferrer"
-                          className="text-blue-500 hover:underline truncate max-w-xs">Sheet Webhook ↗</a>
-                      </div>
-                    )}
+
+                  {/* Action buttons */}
+                  <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => handleToggle(agency.id)} disabled={toggling === agency.id}
+                        title={agency.active ? "Pause agency" : "Activate agency"}
+                        className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+                        {agency.active ? <ToggleRight className="w-5 h-5 text-green-600" /> : <ToggleLeft className="w-5 h-5 text-gray-400" />}
+                      </button>
+                      <button onClick={() => setModal(agency)} title="Edit" className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600">
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleDelete(agency.id, agency.name)} disabled={deleting === agency.id}
+                        title="Delete" className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => handleTest(agency.id)}
+                      disabled={ts === "testing"}
+                      className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${ts === "testing" ? "bg-gray-100 text-gray-400" : ts === "ok" ? "bg-green-100 text-green-700" : ts === "fail" ? "bg-red-100 text-red-700" : "bg-gray-100 hover:bg-blue-100 text-gray-600 hover:text-blue-700"}`}>
+                      {ts === "testing" ? <><RefreshCw className="w-3 h-3 animate-spin" /> Testing...</> :
+                        ts === "ok" ? <><Wifi className="w-3 h-3" /> Connected</> :
+                        ts === "fail" ? <><WifiOff className="w-3 h-3" /> Failed</> :
+                        <><Wifi className="w-3 h-3" /> Test Connection</>}
+                    </button>
                   </div>
-                </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <button
-                    onClick={() => handleToggle(agency.id)}
-                    disabled={toggling === agency.id}
-                    title={agency.active ? "Pause agency" : "Activate agency"}
-                    className="p-1.5 rounded-lg transition-colors hover:bg-gray-100">
-                    {agency.active
-                      ? <ToggleRight className="w-5 h-5 text-green-600" />
-                      : <ToggleLeft className="w-5 h-5 text-gray-400" />}
-                  </button>
-                  <button onClick={() => setModal(agency)} title="Edit"
-                    className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600">
-                    <Edit3 className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => handleDelete(agency.id, agency.name)} disabled={deleting === agency.id}
-                    title="Delete" className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800 space-y-1">
-        <p className="font-semibold">How it works</p>
-        <ul className="list-disc list-inside space-y-0.5 opacity-80">
-          <li>When an order arrives with a matching <strong>source tag</strong> (UTM / referrer), that agency's pixel CAPI fires.</li>
-          <li>If multiple agencies are <strong>Active</strong>, the server fires all their CAPI tokens simultaneously.</li>
-          <li>Each agency can send data to its own <strong>Google Sheet</strong> via the webhook URL.</li>
-          <li>CAPI tokens are <strong>masked</strong> — staff cannot copy or view the full value.</li>
-          <li>Pausing an agency stops its pixel from firing without deleting the profile.</li>
-        </ul>
+      {/* System Health */}
+      <div className="border-t border-gray-200 pt-6 space-y-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Activity className="w-4 h-4 text-gray-500" />
+            <h3 className="font-bold text-gray-800">System Health</h3>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleClearCache}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${cacheCleared ? "bg-green-100 text-green-700" : "bg-gray-100 hover:bg-blue-100 text-gray-600 hover:text-blue-700"}`}>
+              <RotateCcw className="w-3.5 h-3.5" />
+              {cacheCleared ? "Cache Cleared! Reloading..." : "Clear Cache & Reload"}
+            </button>
+            <button
+              onClick={handlePauseAll}
+              disabled={pausingAll || agencies.length === 0}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 hover:bg-red-100 text-red-700 disabled:opacity-50">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              {pausingAll ? "Pausing..." : "Emergency Reset — Pause All"}
+            </button>
+          </div>
+        </div>
+
+        {/* Activity Log */}
+        <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white">
+            <div className="flex items-center gap-2">
+              <Clock className="w-3.5 h-3.5 text-gray-500" />
+              <span className="text-sm font-semibold text-gray-700">CAPI Activity Log</span>
+              <span className="text-xs text-gray-400">— last {log.length} events</span>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={loadHealth} className="p-1 rounded text-gray-400 hover:text-gray-600">
+                <RefreshCw className={`w-3.5 h-3.5 ${logLoading ? "animate-spin" : ""}`} />
+              </button>
+              {log.length > 0 && (
+                <button onClick={async () => { await clearCapiLog(); setLog([]); }}
+                  className="p-1 rounded text-gray-400 hover:text-red-500" title="Clear log">
+                  <Trash className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="divide-y divide-gray-100 max-h-56 overflow-y-auto">
+            {log.length === 0 ? (
+              <div className="flex items-center justify-center h-20 text-gray-400 text-xs">No activity yet — use "Test Connection" to generate entries</div>
+            ) : log.map((entry) => (
+              <div key={entry.id} className="flex items-start gap-3 px-4 py-2.5">
+                <div className="mt-0.5 flex-shrink-0">
+                  {entry.status === "success"
+                    ? <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                    : <XCircle className="w-3.5 h-3.5 text-red-500" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-gray-700">{entry.agencyName}</span>
+                    <span className="text-xs text-gray-400">·</span>
+                    <span className="text-xs text-gray-500">{entry.event}</span>
+                    <span className={`text-xs font-semibold ${entry.status === "success" ? "text-green-600" : "text-red-600"}`}>
+                      {entry.status === "success" ? "✅ Success" : "❌ Failed"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5 truncate">{entry.message}</p>
+                </div>
+                <span className="text-xs text-gray-400 flex-shrink-0 tabular-nums">
+                  {new Date(entry.timestamp).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" })}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Pending CAPI Events */}
+        {pending.length > 0 && (
+          <div className="bg-orange-50 rounded-xl border border-orange-200 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-orange-200">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-3.5 h-3.5 text-orange-500" />
+                <span className="text-sm font-semibold text-orange-800">Failed Events — Pending Retry ({pending.length})</span>
+              </div>
+            </div>
+            <div className="divide-y divide-orange-100 max-h-48 overflow-y-auto">
+              {pending.map((event) => (
+                <div key={event.id} className="flex items-center gap-3 px-4 py-2.5">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-orange-800">{event.agencyName}</span>
+                      <span className="text-xs text-orange-600">· {event.event ?? "Lead"}</span>
+                    </div>
+                    <p className="text-xs text-orange-600 mt-0.5">
+                      {new Date(event.timestamp).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <button onClick={() => handleRetry(event.id)} disabled={retrying === event.id}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-orange-100 hover:bg-orange-200 text-orange-700 disabled:opacity-50">
+                      <RotateCcw className={`w-3 h-3 ${retrying === event.id ? "animate-spin" : ""}`} />
+                      {retrying === event.id ? "Retrying..." : "Retry"}
+                    </button>
+                    <button onClick={() => handleDismiss(event.id)} className="p-1 rounded text-gray-400 hover:text-red-500" title="Dismiss">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800 space-y-1">
+          <p className="font-semibold">How Multi-Agency CAPI works</p>
+          <ul className="list-disc list-inside space-y-0.5 opacity-80">
+            <li><strong>Main pixel always fires</strong> — regardless of source, every order reaches your primary Meta pixel.</li>
+            <li><strong>Agency pixel fires</strong> only when URL has <code>?source=sartaj</code> (or matching source tag).</li>
+            <li><strong>Test Connection</strong> sends a test event to Facebook and shows ✅ or ❌ with the exact error.</li>
+            <li><strong>Emergency Reset</strong> pauses all agency pixels instantly — use if site becomes slow.</li>
+            <li><strong>CAPI tokens</strong> are masked for staff — only last 4 chars visible.</li>
+          </ul>
+        </div>
       </div>
     </div>
   );
 }
 
 /* ──────────────────────────────────────────────
-   Reviews tab (original, unchanged)
+   Reviews Tab
 ────────────────────────────────────────────── */
 function ReviewsTab() {
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -518,12 +643,6 @@ function ReviewsTab() {
     await updateReview(id, { status: "approved" });
     setReviews((prev) => prev.map((r) => r.id === id ? { ...r, status: "approved" } : r));
   }
-
-  async function handleReject(id: number) {
-    await updateReview(id, { status: "rejected" });
-    setReviews((prev) => prev.filter((r) => r.id !== id));
-  }
-
   async function handleDelete(id: number) {
     if (!confirm("Delete this review?")) return;
     await deleteReview(id);
@@ -532,8 +651,60 @@ function ReviewsTab() {
 
   return (
     <div className="space-y-5">
-      {showAdd && <AddReviewModal onClose={() => setShowAdd(false)} onAdded={(r) => { setReviews((prev) => [r, ...prev]); setShowAdd(false); }} />}
-      {editReview && <EditReviewModal review={editReview} onClose={() => setEditReview(null)} onSaved={(r) => { setReviews((prev) => prev.map((x) => x.id === r.id ? r : x)); setEditReview(null); }} />}
+      {showAdd && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900">Add Review</h3>
+              <button onClick={() => setShowAdd(false)}><X className="w-4 h-4 text-gray-400" /></button>
+            </div>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              const fd = new FormData(e.currentTarget);
+              const r = await addReview({ reviewerName: fd.get("name") as string, rating: Number(fd.get("rating")), reviewText: fd.get("text") as string, city: fd.get("city") as string, status: "approved", verified: true });
+              setReviews((prev) => [r, ...prev]); setShowAdd(false);
+            }} className="p-5 space-y-4">
+              <input name="name" required placeholder="Customer Name *" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              <input name="city" placeholder="City" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              <select name="rating" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                {[5,4,3,2,1].map((n) => <option key={n} value={n}>{n} Star{n > 1 ? "s" : ""}</option>)}
+              </select>
+              <textarea name="text" required rows={3} placeholder="Review text *" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none" />
+              <div className="flex gap-2 pt-2">
+                <button type="button" onClick={() => setShowAdd(false)} className="flex-1 px-4 py-2 rounded-lg text-sm bg-gray-100 text-gray-600">Cancel</button>
+                <button type="submit" className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: G }}>Add Review</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {editReview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900">Edit Review</h3>
+              <button onClick={() => setEditReview(null)}><X className="w-4 h-4 text-gray-400" /></button>
+            </div>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              const fd = new FormData(e.currentTarget);
+              const r = await updateReview(editReview.id, { reviewerName: fd.get("name") as string, reviewText: fd.get("text") as string, city: fd.get("city") as string, rating: Number(fd.get("rating")) });
+              setReviews((prev) => prev.map((x) => x.id === r.id ? r : x)); setEditReview(null);
+            }} className="p-5 space-y-4">
+              <input name="name" defaultValue={editReview.reviewerName} required className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              <input name="city" defaultValue={editReview.city ?? ""} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              <select name="rating" defaultValue={editReview.rating} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                {[5,4,3,2,1].map((n) => <option key={n} value={n}>{n} Star{n > 1 ? "s" : ""}</option>)}
+              </select>
+              <textarea name="text" defaultValue={editReview.reviewText} required rows={3} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none" />
+              <div className="flex gap-2 pt-2">
+                <button type="button" onClick={() => setEditReview(null)} className="flex-1 px-4 py-2 rounded-lg text-sm bg-gray-100 text-gray-600">Cancel</button>
+                <button type="submit" className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: G }}>Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center justify-between">
         <div>
@@ -563,11 +734,9 @@ function ReviewsTab() {
       <div className="bg-white rounded-xl border border-gray-200 p-4">
         <div className="flex items-center gap-3">
           <div className="flex rounded-lg overflow-hidden border border-gray-200">
-            {[["all", "All"], ["pending", "Pending"], ["approved", "Approved"], ["rejected", "Rejected"]].map(([v, l]) => (
+            {[["all","All"],["pending","Pending"],["approved","Approved"],["rejected","Rejected"]].map(([v,l]) => (
               <button key={v} onClick={() => setStatusFilter(v as string)}
-                className={`px-3 py-1.5 text-xs font-semibold transition-colors ${statusFilter === v ? "bg-green-700 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
-                {l as string}
-              </button>
+                className={`px-3 py-1.5 text-xs font-semibold transition-colors ${statusFilter === v ? "bg-green-700 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>{l as string}</button>
             ))}
           </div>
           <button onClick={load} disabled={loading} className="px-2 py-1.5 rounded-lg text-sm bg-gray-100 hover:bg-gray-200 text-gray-600">
@@ -583,8 +752,7 @@ function ReviewsTab() {
         ) : reviews.length === 0 ? (
           <div className="bg-white rounded-xl border border-gray-200 flex flex-col items-center justify-center h-32 text-gray-400">
             <Star className="w-8 h-8 mb-2 opacity-30" />
-            <p className="text-sm">No reviews</p>
-            <p className="text-xs mt-1 opacity-60">Add reviews manually or wait for customers</p>
+            <p className="text-sm">No reviews found</p>
           </div>
         ) : reviews.map((review) => (
           <div key={review.id} className="bg-white rounded-xl border border-gray-200 p-4">
@@ -594,38 +762,19 @@ function ReviewsTab() {
                   <span className="font-semibold text-gray-900">{review.reviewerName}</span>
                   {review.city && <span className="text-xs text-gray-500">• {review.city}</span>}
                   {review.verified && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700"><CheckCircle className="w-3 h-3" /> Verified</span>}
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${review.status === "approved" ? "bg-green-100 text-green-700" : review.status === "pending" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"}`}>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${review.status === "approved" ? "bg-green-100 text-green-700" : review.status === "pending" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"}`}>
                     {review.status}
                   </span>
-                  {review.source === "manual" && <span className="text-xs text-gray-400">(manual)</span>}
                 </div>
                 <StarRating rating={review.rating} />
                 <p className="text-sm text-gray-700 mt-2 leading-relaxed">{review.reviewText}</p>
-                <p className="text-xs text-gray-400 mt-1">{new Date(review.createdAt).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric" })}</p>
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
                 {review.status === "pending" && (
-                  <button onClick={() => handleApprove(review.id)} title="Approve" className="p-1.5 rounded-lg bg-green-50 hover:bg-green-100 text-green-600">
-                    <CheckCircle className="w-4 h-4" />
-                  </button>
+                  <button onClick={() => handleApprove(review.id)} className="p-1.5 rounded-lg bg-green-50 hover:bg-green-100 text-green-600"><CheckCircle className="w-4 h-4" /></button>
                 )}
-                {review.status === "pending" && (
-                  <button onClick={() => handleReject(review.id)} title="Reject" className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600">
-                    <XCircle className="w-4 h-4" />
-                  </button>
-                )}
-                {review.status === "approved" && (
-                  <button onClick={() => updateReview(review.id, { status: "rejected" }).then(() => setReviews((prev) => prev.filter((r) => r.id !== review.id)))} title="Unapprove"
-                    className="p-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-600">
-                    <XCircle className="w-4 h-4" />
-                  </button>
-                )}
-                <button onClick={() => setEditReview(review)} title="Edit" className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600">
-                  <Edit3 className="w-4 h-4" />
-                </button>
-                <button onClick={() => handleDelete(review.id)} title="Delete" className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600">
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <button onClick={() => setEditReview(review)} className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600"><Edit3 className="w-4 h-4" /></button>
+                <button onClick={() => handleDelete(review.id)} className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600"><Trash2 className="w-4 h-4" /></button>
               </div>
             </div>
           </div>
@@ -636,7 +785,7 @@ function ReviewsTab() {
 }
 
 /* ──────────────────────────────────────────────
-   Main export — two-tab Marketing page
+   Main Export
 ────────────────────────────────────────────── */
 export function AdminMarketing() {
   const [tab, setTab] = useState<"hub" | "reviews">("hub");
@@ -645,7 +794,7 @@ export function AdminMarketing() {
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-bold text-gray-900">Marketing</h1>
-        <p className="text-xs text-gray-500 mt-0.5">Agency tracking profiles and customer reviews</p>
+        <p className="text-xs text-gray-500 mt-0.5">Agency tracking profiles, health monitoring, and customer reviews</p>
       </div>
 
       <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
