@@ -248,6 +248,8 @@ function MarketingHub() {
   const [modal, setModal] = useState<AgencyProfile | null | "new">(null);
   const [toggling, setToggling] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const [agencyStats, setAgencyStats] = useState<AgencyOrderStat[]>([]);
   const [testStatus, setTestStatus] = useState<Record<string, TestStatus>>({});
   const [testMsg, setTestMsg] = useState<Record<string, string>>({});
   const [pausingAll, setPausingAll] = useState(false);
@@ -273,7 +275,11 @@ function MarketingHub() {
     } finally { setLogLoading(false); }
   }, []);
 
-  useEffect(() => { void load(); void loadHealth(); }, [load, loadHealth]);
+  useEffect(() => {
+    void load();
+    void loadHealth();
+    void fetchAgencyStats().then(setAgencyStats);
+  }, [load, loadHealth]);
 
   async function handleToggle(id: string) {
     setToggling(id);
@@ -298,6 +304,20 @@ function MarketingHub() {
       if (idx >= 0) { const next = [...prev]; next[idx] = updated; return next; }
       return [...prev, updated];
     });
+  }
+
+  async function handleDownload(source: string, name: string) {
+    setDownloading(source);
+    try { await downloadAgencyCSV(source, name); }
+    catch { alert("Download failed. Please try again."); }
+    finally { setDownloading(null); }
+  }
+
+  async function handleDownloadAll() {
+    setDownloading("__all__");
+    try { await downloadAgencyCSV(); }
+    catch { alert("Download failed. Please try again."); }
+    finally { setDownloading(null); }
   }
 
   async function handleTest(id: string) {
@@ -371,9 +391,16 @@ function MarketingHub() {
           <h2 className="text-lg font-bold text-gray-900">Marketing Hub</h2>
           <p className="text-xs text-gray-500 mt-0.5">Manage agency tracking profiles, pixels, and CAPI connections</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button onClick={load} className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600" title="Refresh">
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          </button>
+          <button
+            onClick={handleDownloadAll}
+            disabled={downloading === "__all__"}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 disabled:opacity-50">
+            {downloading === "__all__" ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5" />}
+            Export All Orders
           </button>
           <button onClick={() => setModal("new")}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white hover:brightness-110" style={{ background: G }}>
@@ -486,6 +513,15 @@ function MarketingHub() {
                         ts === "fail" ? <><WifiOff className="w-3 h-3" /> Failed</> :
                         <><Wifi className="w-3 h-3" /> Test Connection</>}
                     </button>
+                    <button
+                      onClick={() => handleDownload(agency.sourceName, agency.name)}
+                      disabled={downloading === agency.sourceName}
+                      title={`Download all ${agency.name} orders as CSV`}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 disabled:opacity-50">
+                      {downloading === agency.sourceName
+                        ? <><RefreshCw className="w-3 h-3 animate-spin" /> Downloading...</>
+                        : <><Download className="w-3 h-3" /> Download Report</>}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -517,6 +553,64 @@ function MarketingHub() {
             </button>
           </div>
         </div>
+
+        {/* Agency Order Stats */}
+        {agencyStats.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <BarChart2 className="w-4 h-4 text-indigo-600" />
+                <span className="font-semibold text-sm text-gray-800">Orders by Source</span>
+                <span className="text-xs text-gray-400 ml-1">— all sources tracked in DB</span>
+              </div>
+              <button
+                onClick={handleDownloadAll}
+                disabled={downloading === "__all__"}
+                className="flex items-center gap-1 text-xs font-medium text-emerald-700 hover:text-emerald-900 disabled:opacity-50">
+                {downloading === "__all__" ? <RefreshCw className="w-3 h-3 animate-spin" /> : <FileSpreadsheet className="w-3 h-3" />}
+                Export All
+              </button>
+            </div>
+            <div className="divide-y divide-gray-50">
+              {agencyStats.map((s) => {
+                const agency = agencies.find((a) => a.sourceName.toLowerCase() === s.source.toLowerCase());
+                const pct = s.total_orders > 0 ? Math.round((s.delivered / s.total_orders) * 100) : 0;
+                return (
+                  <div key={s.source} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+                    <div className="w-36 shrink-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{agency?.name || s.source}</p>
+                      <p className="text-xs text-gray-400 font-mono">?source={s.source}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap flex-1">
+                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
+                        <Package className="w-3 h-3" /> {s.total_orders} total
+                      </span>
+                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-xs font-semibold">
+                        <CheckCircle className="w-3 h-3" /> {s.delivered} delivered
+                      </span>
+                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-xs font-semibold">
+                        <TrendingUp className="w-3 h-3" /> {pct}% conv.
+                      </span>
+                      {s.cancelled > 0 && (
+                        <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-600 text-xs">
+                          <XCircle className="w-3 h-3" /> {s.cancelled} cancelled
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => handleDownload(s.source, agency?.name || s.source)}
+                      disabled={downloading === s.source}
+                      className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 disabled:opacity-50">
+                      {downloading === s.source
+                        ? <><RefreshCw className="w-3 h-3 animate-spin" /> Downloading...</>
+                        : <><Download className="w-3 h-3" /> CSV</>}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Activity Log */}
         <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
