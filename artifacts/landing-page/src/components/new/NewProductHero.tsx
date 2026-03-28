@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { openOrderModal } from "@/lib/orderModalUtils";
 
 function useCountdown(hours = 24) {
   const [time, setTime] = useState(() => {
@@ -33,8 +34,7 @@ export function NewProductHero() {
   const [saveBtnActive, setSaveBtnActive] = useState(false);
 
   const scrollToOrder = () => {
-    const el = document.getElementById("order-form");
-    if (el) el.scrollIntoView({ behavior: "smooth" });
+    openOrderModal();
   };
 
   const handleSaveBtn = () => {

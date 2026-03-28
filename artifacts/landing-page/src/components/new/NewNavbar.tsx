@@ -1,12 +1,12 @@
 import { useState } from "react";
+import { openOrderModal } from "@/lib/orderModalUtils";
 
 export function NewNavbar() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const scrollToOrder = () => {
     setSidebarOpen(false);
-    const el = document.getElementById("order-form");
-    if (el) el.scrollIntoView({ behavior: "smooth" });
+    openOrderModal();
   };
 
   return (

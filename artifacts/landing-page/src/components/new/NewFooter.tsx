@@ -1,7 +1,25 @@
+import { useState, useEffect } from "react";
+
 const themeGreen = "#39593d";
 const font = "'Playpen Sans', cursive";
 
+const DEFAULT_PHONE = "+91 8968122276";
+const DEFAULT_EMAIL = "contact@prakritiherbs.com";
+
 export function NewFooter() {
+  const [phone, setPhone] = useState(DEFAULT_PHONE);
+  const [email, setEmail] = useState(DEFAULT_EMAIL);
+
+  useEffect(() => {
+    fetch("/api/public/settings")
+      .then((r) => r.json())
+      .then((data: Record<string, string>) => {
+        if (data.footer_phone) setPhone(data.footer_phone);
+        if (data.footer_email) setEmail(data.footer_email);
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <footer
       style={{
@@ -48,16 +66,21 @@ export function NewFooter() {
             >
               PRAKRITI HERBS PRIVATE LIMITED
             </h4>
-            {[
-              "A Amer, Jaipur - 302028 (Raj.)",
-              "Customer support: 8234852859",
-              "Email: praktitherbs2@gmail.com",
-              "CIN No.: U46497RJ2025PTC109202",
-            ].map((line) => (
-              <p key={line} style={{ margin: "0 0 4px", fontSize: "0.95em", color: "#ddd" }}>
-                {line}
-              </p>
-            ))}
+            <p style={{ margin: "0 0 4px", fontSize: "0.95em", color: "#ddd" }}>
+              30-31 South Part, Bilochi Nagar A, Amer
+            </p>
+            <p style={{ margin: "0 0 4px", fontSize: "0.95em", color: "#ddd" }}>
+              Jaipur, Rajasthan – 302012
+            </p>
+            <p style={{ margin: "0 0 4px", fontSize: "0.95em", color: "#ddd" }}>
+              Customer Support: {phone}
+            </p>
+            <p style={{ margin: "0 0 4px", fontSize: "0.95em", color: "#ddd" }}>
+              Email: {email}
+            </p>
+            <p style={{ margin: "0 0 4px", fontSize: "0.95em", color: "#ddd" }}>
+              CIN No.: U46497RJ2025PTC109202
+            </p>
           </div>
 
           {/* Right section */}
@@ -143,7 +166,7 @@ export function NewFooter() {
           }}
         >
           <p style={{ color: "#ddd", fontSize: 12, margin: 0 }}>
-            © 2026, PRAKRITI HERBS PRIVATE LIMITED
+            © 2026, PRAKRITI HERBS PRIVATE LIMITED | CIN: U46497RJ2025PTC109202
           </p>
         </div>
       </div>

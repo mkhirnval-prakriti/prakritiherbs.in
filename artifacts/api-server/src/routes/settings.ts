@@ -28,7 +28,27 @@ const ALLOWED_KEYS = [
   "director_name",
   "director_signature_url",
   "report_email",
+  "popup_banner_url",
+  "footer_phone",
+  "footer_email",
 ];
+
+const PUBLIC_KEYS = ["popup_banner_url", "footer_phone", "footer_email"];
+
+/** Public — no auth — returns only popup_banner_url, footer_phone, footer_email */
+router.get("/public/settings", async (_req, res) => {
+  try {
+    const rows = await db.select().from(appSettingsTable);
+    const result: Record<string, string> = {};
+    for (const key of PUBLIC_KEYS) {
+      const row = rows.find((r) => r.key === key);
+      if (row?.value) result[key] = row.value;
+    }
+    res.json(result);
+  } catch {
+    res.status(500).json({ error: "Failed to fetch public settings" });
+  }
+});
 
 router.get("/admin/settings", requireAdmin, async (_req, res) => {
   try {

@@ -57,11 +57,11 @@ export function firePageView(): void {
 }
 
 /** Fire when COD order is successfully submitted — Purchase event for ROAS tracking */
-export function fireLead(params?: { name?: string; phone?: string; eventId?: string }): void {
+export function fireLead(params?: { name?: string; phone?: string; eventId?: string; value?: number }): void {
   fbq("track", "Purchase", {
     content_name: "KamaSutra Gold+",
     currency: "INR",
-    value: 999,
+    value: params?.value ?? 999,
     ...(params?.eventId ? { eventID: params.eventId } : {}),
   });
 }

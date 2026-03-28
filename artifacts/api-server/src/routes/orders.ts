@@ -26,6 +26,7 @@ router.post("/orders", async (req, res) => {
     userAgent?: string;
     city?: string;
     state?: string;
+    amount?: number;
   };
   const source = body.source?.trim().toLowerCase() || "direct";
   const visitorSource = body.visitorSource ?? "Direct";
@@ -75,6 +76,7 @@ router.post("/orders", async (req, res) => {
       customData: {
         order_id: orderId,
         num_items: quantity,
+        ...(body.amount ? { value: body.amount } : {}),
       },
     }, source).catch((err) => {
       req.log.warn({ err }, "[CAPI] Purchase event failed (non-blocking)");

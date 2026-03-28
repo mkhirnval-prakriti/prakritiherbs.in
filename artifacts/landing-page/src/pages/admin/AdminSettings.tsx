@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { fetchSettings, saveSettings, fetchStaff, createStaff, deleteStaff, isSuperAdmin, changePassword, setAdminToken, type StaffUser } from "@/lib/adminApi";
-import { Save, Truck, MessageSquare, CreditCard, Building2, Mail, Clock, ExternalLink, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Zap, Users, UserPlus, Trash2, ShieldCheck, Eye, EyeOff, Lock, KeyRound, Loader2 } from "lucide-react";
+import { Save, Truck, MessageSquare, CreditCard, Building2, Mail, Clock, ExternalLink, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Zap, Users, UserPlus, Trash2, ShieldCheck, Eye, EyeOff, Lock, KeyRound, Loader2, Globe, Phone } from "lucide-react";
 
 const G = "#1B5E20";
 
@@ -417,6 +417,76 @@ export function AdminSettings() {
             <button onClick={() => save(["gst_number", "company_pan", "director_name", "report_email"], "business")} disabled={saving === "business"}
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60" style={{ background: G }}>
               <Save className="w-3.5 h-3.5" /> {saving === "business" ? "Saving..." : "Save"}
+            </button>
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Landing Page Customization" icon={<Globe className="w-4 h-4" />}>
+        <div className="space-y-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
+            इन settings को बदलने के बाद <strong>Save</strong> दबाएं — changes तुरंत live हो जाएंगे।
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-gray-600 mb-1 block">Order Popup Banner Image URL</label>
+            <input
+              type="url"
+              value={values["popup_banner_url"] ?? ""}
+              onChange={(e) => setVal("popup_banner_url", e.target.value)}
+              placeholder="https://example.com/offer-banner.jpg"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30"
+            />
+            <p className="text-xs text-gray-400 mt-0.5">
+              Order Now बटन दबाने पर जो पॉपअप खुलता है, उसमें यह इमेज दिखेगी। खाली छोड़ने पर default product इमेज दिखेगी।
+            </p>
+            {values["popup_banner_url"] && (
+              <div className="mt-2 rounded-lg overflow-hidden border border-gray-200 max-w-xs">
+                <img
+                  src={values["popup_banner_url"]}
+                  alt="Popup Banner Preview"
+                  className="w-full h-24 object-cover"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-semibold text-gray-600 mb-1 flex items-center gap-1.5 block">
+                <Phone className="w-3 h-3" /> Footer Customer Support Number
+              </label>
+              <input
+                type="text"
+                value={values["footer_phone"] ?? ""}
+                onChange={(e) => setVal("footer_phone", e.target.value)}
+                placeholder="+91 8968122276"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-600 mb-1 flex items-center gap-1.5 block">
+                <Mail className="w-3 h-3" /> Footer Contact Email
+              </label>
+              <input
+                type="email"
+                value={values["footer_email"] ?? ""}
+                onChange={(e) => setVal("footer_email", e.target.value)}
+                placeholder="contact@prakritiherbs.com"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              onClick={() => save(["popup_banner_url", "footer_phone", "footer_email"], "landing_page")}
+              disabled={saving === "landing_page"}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
+              style={{ background: G }}
+            >
+              <Save className="w-3.5 h-3.5" /> {saving === "landing_page" ? "Saving..." : "Save"}
             </button>
           </div>
         </div>
