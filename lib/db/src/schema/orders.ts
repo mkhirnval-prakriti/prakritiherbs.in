@@ -22,6 +22,7 @@ export const ordersTable = pgTable("orders", {
   city: text("city"),
   state: text("state"),
   visitorSource: text("visitor_source").default("Direct"),
+  landingPageUrl: text("landing_page_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

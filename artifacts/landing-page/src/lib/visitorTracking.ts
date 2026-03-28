@@ -40,6 +40,40 @@ export function clearAgencySource(): void {
   try { localStorage.removeItem(AGENCY_SRC_KEY); } catch { /* ignore */ }
 }
 
+/* ─────────────────────────────────────────────────────────────────
+ * Landing Page URL Capture
+ *
+ * Captures the FIRST URL the visitor lands on (full href including
+ * query string). If a ?source= param is present in the URL, the
+ * landing URL is always overwritten so a new agency link always
+ * records the correct attribution URL.
+ *
+ * Stored in localStorage "_pk_lpurl" — survives page navigation.
+ * Cleared after order is placed.
+ * ───────────────────────────────────────────────────────────────── */
+const LANDING_URL_KEY = "_pk_lpurl";
+
+export function captureLandingUrl(): void {
+  if (typeof window === "undefined") return;
+  try {
+    const currentUrl = window.location.href;
+    const hasSource = new URLSearchParams(window.location.search).has("source");
+    // Always overwrite when ?source= is present (new agency link clicked)
+    // Otherwise only set if not already captured (preserve true landing page)
+    if (hasSource || !localStorage.getItem(LANDING_URL_KEY)) {
+      localStorage.setItem(LANDING_URL_KEY, currentUrl);
+    }
+  } catch { /* private mode */ }
+}
+
+export function getLandingPageUrl(): string {
+  try { return localStorage.getItem(LANDING_URL_KEY) ?? ""; } catch { return ""; }
+}
+
+export function clearLandingPageUrl(): void {
+  try { localStorage.removeItem(LANDING_URL_KEY); } catch { /* ignore */ }
+}
+
 function detectSource(): VisitorSource {
   if (typeof window === "undefined") return "Direct";
   const params = new URLSearchParams(window.location.search);

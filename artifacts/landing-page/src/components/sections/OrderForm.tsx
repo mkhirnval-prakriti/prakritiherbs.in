@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, ShieldCheck, Truck, Package, X, Loader2, MapPin, CheckCircle, AlertCircle } from "lucide-react";
 import { cleanMobile, sendLeadToCRM, DuplicateOrderError, hasOrderedToday } from "@/lib/crm";
 import { fireLead, fireInitiateCheckout, markPaymentInitiated, generateEventId, getCookie } from "@/lib/pixel";
-import { getVisitorSource, startVisitorPing, getAgencySource, clearAgencySource } from "@/lib/visitorTracking";
+import { getVisitorSource, startVisitorPing, getAgencySource, clearAgencySource, captureLandingUrl, getLandingPageUrl, clearLandingPageUrl } from "@/lib/visitorTracking";
 
 /* ─── Types ─── */
 type LocationStatus = "idle" | "detecting" | "gps_ok" | "gps_denied" | "pin_ok" | "pin_err";
@@ -177,6 +177,8 @@ export function OrderForm() {
 
   /* ─── GPS Auto-Detect on Page Load ─── */
   useEffect(() => {
+    // Must run BEFORE any navigation — captures the URL visitor first landed on
+    captureLandingUrl();
     startVisitorPing();
 
     if (geoAttempted.current || !navigator.geolocation) return;
@@ -277,6 +279,7 @@ export function OrderForm() {
           source: agencySource || "direct",
           email: email.trim() || undefined,
           visitorSource: visitorSource ?? "Direct",
+          landingPageUrl: getLandingPageUrl() || undefined,
           eventId: leadEventId,
           fbp: getCookie("_fbp"),
           fbc: getCookie("_fbc"),
@@ -292,8 +295,9 @@ export function OrderForm() {
       window.open(`https://wa.me/918968122246?text=${msg}`, "_blank");
 
       fireLead({ name: name.trim(), phone: mobile, eventId: leadEventId });
-      // Clear agency attribution so a re-order doesn't double-attribute
+      // Clear agency attribution + landing URL after order — avoid carrying over to next session
       clearAgencySource();
+      clearLandingPageUrl();
       setLoading(false);
       setShowSuccess(true);
     } catch (err) {

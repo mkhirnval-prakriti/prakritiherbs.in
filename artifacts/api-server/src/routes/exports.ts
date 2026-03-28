@@ -40,7 +40,7 @@ function toIST(ts: Date | string | null): string {
 const HEADERS = [
   "Order ID", "Date (IST)", "Customer Name", "Phone", "City", "State",
   "Pincode", "Address", "Product", "Qty", "Amount (₹)", "Status",
-  "Payment Method", "Payment Status", "Source", "Visitor Source",
+  "Payment Method", "Payment Status", "Source", "Visitor Source", "Landing Page URL",
 ];
 
 router.get("/admin/export/orders", requireAdmin, async (req, res) => {
@@ -70,7 +70,7 @@ router.get("/admin/export/orders", requireAdmin, async (req, res) => {
     const sql = `
       SELECT order_id, created_at, name, phone, city, state, pincode, address,
              product, quantity, status, payment_method, payment_status,
-             source, visitor_source
+             source, visitor_source, landing_page_url
       FROM orders
       ${where}
       ORDER BY created_at DESC
@@ -103,6 +103,7 @@ router.get("/admin/export/orders", requireAdmin, async (req, res) => {
         cell(r.payment_status as string),
         cell(r.source as string),
         cell(r.visitor_source as string),
+        cell(r.landing_page_url as string),
       ].join(","));
     }
 
@@ -124,8 +125,9 @@ router.get("/admin/export/orders", requireAdmin, async (req, res) => {
         "Status":         r.status,
         "Payment Method": r.payment_method ?? "",
         "Payment Status": r.payment_status ?? "",
-        "Source":         r.source ?? "",
-        "Visitor Source": r.visitor_source ?? "",
+        "Source":            r.source ?? "",
+        "Visitor Source":    r.visitor_source ?? "",
+        "Landing Page URL":  r.landing_page_url ?? "",
       })));
       return;
     }

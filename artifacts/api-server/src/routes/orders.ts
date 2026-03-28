@@ -19,6 +19,7 @@ router.post("/orders", async (req, res) => {
     email?: string;
     source?: string;
     visitorSource?: string;
+    landingPageUrl?: string;
     eventId?: string;
     fbp?: string;
     fbc?: string;
@@ -28,6 +29,7 @@ router.post("/orders", async (req, res) => {
   };
   const source = body.source?.trim().toLowerCase() || "direct";
   const visitorSource = body.visitorSource ?? "Direct";
+  const landingPageUrl = typeof body.landingPageUrl === "string" && body.landingPageUrl.trim() ? body.landingPageUrl.trim() : null;
   const city = typeof body.city === "string" ? body.city.trim() || null : null;
   const state = typeof body.state === "string" ? body.state.trim() || null : null;
   /* Email is stored locally only — NEVER forwarded to CRM or Meta CAPI */
@@ -50,6 +52,7 @@ router.post("/orders", async (req, res) => {
         product,
         source,
         visitorSource,
+        landingPageUrl,
         status: "New",
       })
       .returning();
