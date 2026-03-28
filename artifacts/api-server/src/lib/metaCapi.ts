@@ -14,7 +14,7 @@
  */
 
 import { createHash } from "crypto";
-import { readAgencies } from "../routes/agencies.js";
+import { readAgencies, appendCapiLog, appendPendingEvent } from "../routes/agencies.js";
 
 const DEFAULT_PIXEL_ID = "1188710012812588";
 
@@ -157,20 +157,33 @@ async function fireToPixel(
     });
 
     if (!response.ok) {
-      const text = await response.text();
-      console.error(`[CAPI][${label}] ${params.eventName} — HTTP ${response.status}:`, text);
+      let errMsg = `HTTP ${response.status}`;
+      try {
+        const errJson = (await response.json()) as { error?: { message?: string } };
+        errMsg = errJson?.error?.message ?? errMsg;
+      } catch { /* ignore parse error */ }
+      console.error(`[CAPI][${label}] ${params.eventName} — ${errMsg}`);
+
+      // Write failure to activity log + pending retry queue
+      void appendCapiLog({ agencyName: label, pixelId, event: params.eventName, status: "failed", message: errMsg });
+      void appendPendingEvent({ agencyName: label, pixelId, capiToken: token, event: params.eventName, payload: body as Record<string, unknown> });
       return false;
     }
 
     const json = (await response.json()) as { events_received?: number };
-    console.log(
-      `[CAPI][${label}] ${params.eventName} sent.`,
-      `events_received=${json.events_received ?? "?"}`,
-      params.eventId ? `event_id=${params.eventId}` : "",
-    );
+    const msg = `events_received=${json.events_received ?? 1}`;
+    console.log(`[CAPI][${label}] ${params.eventName} sent. ${msg}`, params.eventId ? `event_id=${params.eventId}` : "");
+
+    // Write success to activity log
+    void appendCapiLog({ agencyName: label, pixelId, event: params.eventName, status: "success", message: msg });
     return true;
   } catch (err) {
-    console.error(`[CAPI][${label}] Network error:`, err);
+    const errMsg = err instanceof Error ? err.message : "Network error";
+    console.error(`[CAPI][${label}] Network error:`, errMsg);
+
+    // Write failure to activity log + pending retry queue
+    void appendCapiLog({ agencyName: label, pixelId, event: params.eventName, status: "failed", message: errMsg });
+    void appendPendingEvent({ agencyName: label, pixelId, capiToken: token, event: params.eventName, payload: body as Record<string, unknown> });
     return false;
   }
 }

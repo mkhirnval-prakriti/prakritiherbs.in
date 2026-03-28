@@ -39,6 +39,7 @@ export interface PendingCapiEvent {
   timestamp: string;
   agencyName: string;
   pixelId: string;
+  event: string;
   capiToken: string;
   payload: Record<string, unknown>;
 }
