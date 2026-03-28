@@ -10,6 +10,7 @@ import paymentsRouter from "./payments";
 import liveRouter from "./live";
 import authRouter from "./auth";
 import agenciesRouter from "./agencies";
+import exportsRouter from "./exports";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(reviewsRouter);
 router.use(settingsRouter);
 router.use(paymentsRouter);
 router.use(agenciesRouter);
+router.use(exportsRouter);
 
 export default router;

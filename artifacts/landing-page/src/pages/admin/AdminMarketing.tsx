@@ -4,13 +4,15 @@ import {
   fetchAgencies, saveAgency, toggleAgency, deleteAgency,
   testAgencyConnection, pauseAllAgencies,
   fetchCapiLog, clearCapiLog, fetchPendingCapi, retryCapi, dismissPendingCapi,
-  type Review, type AgencyProfile, type CapiLogEntry, type PendingCapiEvent,
+  downloadAgencyCSV, fetchAgencyStats,
+  type Review, type AgencyProfile, type CapiLogEntry, type PendingCapiEvent, type AgencyOrderStat,
 } from "@/lib/adminApi";
 import {
   Star, Plus, RefreshCw, CheckCircle, XCircle, Edit3, Trash2, X,
   Building2, Eye, EyeOff, ToggleLeft, ToggleRight, AlertCircle, Zap, Globe,
   Copy, Check, Wifi, WifiOff, ShieldAlert, ShieldCheck, RotateCcw,
-  Activity, Clock, AlertTriangle, Trash,
+  Activity, Clock, AlertTriangle, Trash, Download, FileSpreadsheet,
+  Package, TrendingUp, BarChart2,
 } from "lucide-react";
 
 const G = "#1B5E20";

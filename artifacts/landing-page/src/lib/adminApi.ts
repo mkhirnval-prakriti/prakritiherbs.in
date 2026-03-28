@@ -540,6 +540,39 @@ export async function dismissPendingCapi(id: string): Promise<void> {
   await authFetch(`/admin/capi-pending/${id}`, { method: "DELETE" });
 }
 
+/* ─── Data Export ─── */
+export async function downloadAgencyCSV(source?: string, label?: string): Promise<void> {
+  const params = new URLSearchParams();
+  if (source) params.set("source", source);
+  const res = await authFetch(`/admin/export/orders?${params.toString()}`);
+  if (!res.ok) { alert("Export failed. Please try again."); return; }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const date = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = source ? `prakriti_${source}_orders_${date}.csv` : `prakriti_all_orders_${date}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+export interface AgencyOrderStat {
+  source: string;
+  total_orders: number;
+  delivered: number;
+  cancelled: number;
+  new_orders: number;
+  first_order: string | null;
+  last_order: string | null;
+}
+export async function fetchAgencyStats(): Promise<AgencyOrderStat[]> {
+  const res = await authFetch("/admin/export/agency-stats");
+  if (!res.ok) return [];
+  return res.json() as Promise<AgencyOrderStat[]>;
+}
+
 /* ─── Staff Management ─── */
 export interface StaffUser { id: string; username: string; role: "order_manager" | "view_only"; createdAt: string; }
 
