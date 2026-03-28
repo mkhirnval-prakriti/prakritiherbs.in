@@ -1,4 +1,4 @@
-modules = ["nodejs-24"]
+modules = ["nodejs-24", "postgresql-16"]
 
 [[artifacts]]
 id = "artifacts/api-server"
@@ -32,3 +32,6 @@ ADMIN_USERNAME = "prakriti_admin"
 ADMIN_PASSWORD = "Prakriti@2026!"
 JWT_SECRET = "pk_prakritiherbs_jwt_secret_2026_xK9mN3pQ"
 CRM_API_URL = "https://api.prakritiherbs.com/api/Indstore"
+
+[nix]
+channel = "stable-25_05"
