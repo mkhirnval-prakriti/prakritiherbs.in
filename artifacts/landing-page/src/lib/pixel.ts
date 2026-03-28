@@ -56,9 +56,9 @@ export function firePageView(): void {
   fbq("track", "PageView");
 }
 
-/** Fire when COD order is successfully submitted */
+/** Fire when COD order is successfully submitted — Purchase event for ROAS tracking */
 export function fireLead(params?: { name?: string; phone?: string; eventId?: string }): void {
-  fbq("track", "Lead", {
+  fbq("track", "Purchase", {
     content_name: "KamaSutra Gold+",
     currency: "INR",
     value: 999,

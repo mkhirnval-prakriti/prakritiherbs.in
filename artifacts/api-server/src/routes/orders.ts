@@ -57,10 +57,10 @@ router.post("/orders", async (req, res) => {
       })
       .returning();
 
-    // Fire server-side CAPI Lead event to ALL active agency pixels simultaneously
+    // Fire server-side CAPI Purchase event to ALL active agency pixels simultaneously
     // (fire-and-forget — never blocks response)
     sendCapiToAllAgencies({
-      eventName:  "Lead",
+      eventName:  "Purchase",
       eventId:    body.eventId,
       phone,
       name,
@@ -77,7 +77,7 @@ router.post("/orders", async (req, res) => {
         num_items: quantity,
       },
     }, source).catch((err) => {
-      req.log.warn({ err }, "[CAPI] Lead event failed (non-blocking)");
+      req.log.warn({ err }, "[CAPI] Purchase event failed (non-blocking)");
     });
 
     res.status(201).json({
