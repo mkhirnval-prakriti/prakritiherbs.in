@@ -62,6 +62,8 @@ export function NewNavbar() {
             <img
               src="/new-images/logo.png"
               alt="Prakriti Herbs"
+              fetchPriority="high"
+              decoding="async"
               style={{ maxWidth: 100, height: "auto" }}
             />
           </a>

@@ -44,6 +44,7 @@ router.get("/public/settings", async (_req, res) => {
       const row = rows.find((r) => r.key === key);
       if (row?.value) result[key] = row.value;
     }
+    res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=60");
     res.json(result);
   } catch {
     res.status(500).json({ error: "Failed to fetch public settings" });

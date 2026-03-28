@@ -70,6 +70,9 @@ export function NewProductHero() {
               <img
                 src="/new-images/1.jpg"
                 alt="KamaSutra Gold+"
+                fetchPriority="high"
+                loading="eager"
+                decoding="sync"
                 style={{ width: "100%", borderRadius: 12, display: "block" }}
               />
             </div>
@@ -308,15 +311,15 @@ export function NewProductHero() {
               आया और उसमें बहुत मजा भी आया।
             </p>
 
-            <img src="/new-images/2.png" alt="" style={{ width: "100%", borderRadius: 8, marginBottom: 16 }} />
-            <img src="/new-images/3.png" alt="" style={{ width: "100%", borderRadius: 8, marginBottom: 16 }} />
+            <img src="/new-images/2.png" alt="" loading="lazy" decoding="async" style={{ width: "100%", borderRadius: 8, marginBottom: 16 }} />
+            <img src="/new-images/3.png" alt="" loading="lazy" decoding="async" style={{ width: "100%", borderRadius: 8, marginBottom: 16 }} />
 
             <p style={{ fontFamily: font, color: "#444", lineHeight: 1.8, marginBottom: 16 }}>
               हालाँकि मैं देख सकता था कि मेरा लिंग दिन-ब-दिन बड़ा होता जा रहा है, फिर भी मुझे ऐसे परिणामों
               की उम्मीद नहीं थी। छह सेंटीमीटर जितना! अब मेरा लिंग सिर्फ एक लिंग नहीं था, बल्कि एक चुदाई का दैत्य था।
             </p>
 
-            <img src="/new-images/4.png" alt="" style={{ width: "100%", borderRadius: 8, marginBottom: 16 }} />
+            <img src="/new-images/4.png" alt="" loading="lazy" decoding="async" style={{ width: "100%", borderRadius: 8, marginBottom: 16 }} />
 
             <p style={{ fontFamily: font, color: "#444", lineHeight: 1.8, marginBottom: 16 }}>
               इसलिए दोस्तों, मैं तो आपको यही सलाह दूँगा। यदि आपको लग रहा है कि आपकी बीवी या प्रेमी
@@ -324,7 +327,7 @@ export function NewProductHero() {
               दे सकेंगे तो आप चेक कर सकते हैं कि वह कितना सच बोल रही है।
             </p>
 
-            <img src="/new-images/5.jpg" alt="" style={{ width: "100%", borderRadius: 8, marginBottom: 24 }} />
+            <img src="/new-images/5.jpg" alt="" loading="lazy" decoding="async" style={{ width: "100%", borderRadius: 8, marginBottom: 24 }} />
 
             {/* Government Approved */}
             <h2
@@ -338,9 +341,9 @@ export function NewProductHero() {
             >
               Government Approved
             </h2>
-            <img src="/new-images/6.png" alt="" style={{ width: "100%", borderRadius: 8, marginBottom: 16 }} />
-            <img src="/new-images/7.png" alt="" style={{ width: "100%", borderRadius: 8, marginBottom: 16 }} />
-            <img src="/new-images/8.png" alt="" style={{ width: "100%", borderRadius: 8, marginBottom: 24 }} />
+            <img src="/new-images/6.png" alt="" loading="lazy" decoding="async" style={{ width: "100%", borderRadius: 8, marginBottom: 16 }} />
+            <img src="/new-images/7.png" alt="" loading="lazy" decoding="async" style={{ width: "100%", borderRadius: 8, marginBottom: 16 }} />
+            <img src="/new-images/8.png" alt="" loading="lazy" decoding="async" style={{ width: "100%", borderRadius: 8, marginBottom: 24 }} />
 
             {/* Bottom Order CTA */}
             <button
