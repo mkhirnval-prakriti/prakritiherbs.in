@@ -254,8 +254,13 @@ export function NewNavbar() {
             fontFamily: "'Playpen Sans', cursive",
           }}
         >
-          <p style={{ margin: 0 }}>📞 8234852859</p>
-          <p style={{ margin: "4px 0 0" }}>📧 praktitherbs2@gmail.com</p>
+          <p style={{ margin: "0 0 2px", fontWeight: 600, color: "#39593d", fontSize: 11 }}>
+            PRAKRITI HERBS PRIVATE LIMITED
+          </p>
+          <p style={{ margin: "0 0 2px" }}>📍 Amer, Jaipur – 302012 (Rajasthan)</p>
+          <p style={{ margin: "0 0 2px" }}>📞 +91 8968122276</p>
+          <p style={{ margin: "0 0 2px" }}>📧 contact@prakritiherbs.com</p>
+          <p style={{ margin: "4px 0 0", fontSize: 10, color: "#aaa" }}>CIN: U46497RJ2025PTC109202</p>
         </div>
       </div>
     </>

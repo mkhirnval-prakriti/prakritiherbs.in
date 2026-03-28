@@ -165,6 +165,40 @@ export function NewProductHero() {
               </button>
             </div>
 
+            {/* Pay Online Button */}
+            <div style={{ marginBottom: 24, textAlign: "center" }}>
+              <a
+                href="https://payments.cashfree.com/forms/kama"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "block",
+                  width: "100%",
+                  padding: "13px 20px",
+                  background: "linear-gradient(135deg, #e6cf73 0%, #d4b856 100%)",
+                  color: "#2d2d2d",
+                  border: "none",
+                  borderRadius: 100,
+                  fontSize: 14,
+                  fontWeight: 700,
+                  fontFamily: "'Playpen Sans', cursive",
+                  textDecoration: "none",
+                  boxShadow: "0 2px 8px rgba(214,184,86,0.4)",
+                  cursor: "pointer",
+                  letterSpacing: 0.3,
+                  transition: "transform 0.2s",
+                  boxSizing: "border-box",
+                }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.transform = "translateY(-2px)")}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.transform = "translateY(0)")}
+              >
+                💳 Pay Online &amp; Get 10% Extra Discount
+              </a>
+              <p style={{ margin: "6px 0 0", fontSize: 11, color: "#888", fontFamily: font }}>
+                UPI / Debit Card / Credit Card / Net Banking
+              </p>
+            </div>
+
             {/* Countdown Timer */}
             <div
               style={th({
