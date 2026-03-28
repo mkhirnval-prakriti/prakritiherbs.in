@@ -1,7 +1,7 @@
 import { Phone, MessageCircle } from "lucide-react";
 import { motion } from "framer-motion";
 
-const WA_URL = `https://wa.me/918968122246?text=${encodeURIComponent("Namaste, I want more information about Kamasutra Gold +")}`;
+const WA_URL = `https://api.whatsapp.com/send/?phone=918968122246&text=${encodeURIComponent("Namaste, I want more information about Kamasutra Gold +")}&type=phone_number&app_absent=0`;
 
 export function FloatingContact() {
   return (

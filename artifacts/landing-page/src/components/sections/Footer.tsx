@@ -37,7 +37,7 @@ export function Footer() {
                 +91 89681 22276
               </a>
               <a
-                href="https://wa.me/918968122246"
+                href="https://api.whatsapp.com/send/?phone=918968122246&type=phone_number&app_absent=0"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 hover:text-primary transition-colors"

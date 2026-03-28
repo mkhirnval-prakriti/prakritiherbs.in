@@ -234,7 +234,7 @@ export function OrderModal({ open, onClose, bannerUrl }: { open: boolean; onClos
       const msg = encodeURIComponent(
         `*New COD Order — KamaSutra Gold+*\n*Name:* ${name.trim()}\n*Mobile:* ${mobile}\n*Address:* ${address.trim()}${city ? `, ${city}` : ""}${state ? `, ${state}` : ""}\n*Pincode:* ${pincode}\n*Qty:* ${pack.label} (${pack.qty} bottle)\n*Amount:* ₹${pack.price} (COD)\n*Source:* ${agencySource || "direct"}`
       );
-      window.open(`https://wa.me/918968122246?text=${msg}`, "_blank");
+      window.open(`https://api.whatsapp.com/send/?phone=918968122246&text=${msg}&type=phone_number&app_absent=0`, "_blank");
 
       fireLead({ phone: mobile, eventId: leadEventId, value: pack.price });
       clearAgencySource();

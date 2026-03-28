@@ -8,7 +8,7 @@ const badges = [
   "✔ COD Available",
 ];
 
-const WA_HERO = `https://wa.me/918968122246?text=${encodeURIComponent("Namaste, I want more information about Kamasutra Gold +")}`;
+const WA_HERO = `https://api.whatsapp.com/send/?phone=918968122246&text=${encodeURIComponent("Namaste, I want more information about Kamasutra Gold +")}&type=phone_number&app_absent=0`;
 
 export function Hero() {
   const scrollToOrder = () => {

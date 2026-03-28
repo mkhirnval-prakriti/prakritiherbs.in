@@ -292,7 +292,7 @@ export function OrderForm() {
       const msg = encodeURIComponent(
         `*New COD Order:*\n*Product:* KamaSutra Gold+\n*Name:* ${name}\n*Mobile:* ${mobile}\n*Address:* ${address}${city ? `, ${city}` : ""}${state ? `, ${state}` : ""}\n*Pincode:* ${pincode}\n*Qty:* ${quantity} bottle(s)`
       );
-      window.open(`https://wa.me/918968122246?text=${msg}`, "_blank");
+      window.open(`https://api.whatsapp.com/send/?phone=918968122246&text=${msg}&type=phone_number&app_absent=0`, "_blank");
 
       fireLead({ name: name.trim(), phone: mobile, eventId: leadEventId });
       // Clear agency attribution + landing URL after order — avoid carrying over to next session

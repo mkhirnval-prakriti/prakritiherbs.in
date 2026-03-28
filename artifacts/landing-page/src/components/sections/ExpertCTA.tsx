@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { Phone, MessageCircle } from "lucide-react";
 
-const WA_EXPERT = `https://wa.me/918968122246?text=${encodeURIComponent("Namaste, I want more information about Kamasutra Gold +")}`;
+const WA_EXPERT = `https://api.whatsapp.com/send/?phone=918968122246&text=${encodeURIComponent("Namaste, I want more information about Kamasutra Gold +")}&type=phone_number&app_absent=0`;
 
 export function ExpertCTA() {
   return (
