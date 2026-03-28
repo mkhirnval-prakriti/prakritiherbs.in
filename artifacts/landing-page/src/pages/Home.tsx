@@ -1,40 +1,46 @@
-import { UrgencyBar } from "@/components/UrgencyBar";
-import { Header } from "@/components/Header";
-import { Hero } from "@/components/sections/Hero";
-import { TrustBadges } from "@/components/sections/TrustBadges";
-import { Gallery } from "@/components/sections/Gallery";
-import { Ingredients } from "@/components/sections/Ingredients";
-import { HowToUse } from "@/components/sections/HowToUse";
-import { BeforeAfter } from "@/components/sections/BeforeAfter";
-import { HowItWorks } from "@/components/sections/HowItWorks";
-import { Reviews } from "@/components/sections/Reviews";
+import { NewTopbar } from "@/components/new/NewTopbar";
+import { NewNavbar } from "@/components/new/NewNavbar";
+import { NewProductHero } from "@/components/new/NewProductHero";
+import { NewFooter } from "@/components/new/NewFooter";
 import { OrderForm } from "@/components/sections/OrderForm";
-import { ExpertCTA } from "@/components/sections/ExpertCTA";
-import { LegalSection } from "@/components/sections/LegalSection";
-import { Footer } from "@/components/sections/Footer";
+import { Reviews } from "@/components/sections/Reviews";
 import { FloatingContact } from "@/components/FloatingContact";
 import { LiveOrderPopup } from "@/components/LiveOrderPopup";
 
 export default function Home() {
   return (
-    <div className="min-h-screen w-full flex flex-col bg-background font-sans overflow-x-hidden">
-      <UrgencyBar />
-      <Header />
+    <div
+      style={{
+        fontFamily: "'Playpen Sans', cursive",
+        overflowX: "hidden",
+      }}
+    >
+      {/* Top announcement bar */}
+      <NewTopbar />
+
+      {/* Sticky navbar with mobile sidebar */}
+      <NewNavbar />
+
       <main>
-        <Hero />
-        <TrustBadges />
-        <Gallery />
-        <Ingredients />
-        <HowToUse />
-        <BeforeAfter />
-        <HowItWorks />
+        {/* New Shopify-style product hero section */}
+        <NewProductHero />
+
+        {/* Customer reviews — kept from existing design */}
         <Reviews />
-        <OrderForm />
-        <ExpertCTA />
-        <LegalSection />
+
+        {/* Order form — all Pixel + CAPI + tracking logic fully intact */}
+        <div id="order-form">
+          <OrderForm />
+        </div>
       </main>
-      <Footer />
+
+      {/* New dark-green footer */}
+      <NewFooter />
+
+      {/* Floating WhatsApp button — kept intact */}
       <FloatingContact />
+
+      {/* Live order social proof popup — kept intact */}
       <LiveOrderPopup />
     </div>
   );
