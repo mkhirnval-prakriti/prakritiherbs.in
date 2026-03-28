@@ -90,17 +90,31 @@ async function writePending(events: PendingCapiEvent[]): Promise<void> {
   );
 }
 
-/** Add an entry to the CAPI activity log (max 20) */
+/** Add an entry to the CAPI activity log (max 20) — atomic, no race condition */
 export async function appendCapiLog(entry: Omit<CapiLogEntry, "id" | "timestamp">): Promise<void> {
   try {
-    const log = await readLog();
-    log.unshift({ id: randomUUID(), timestamp: new Date().toISOString(), ...entry });
-    const trimmed = log.slice(0, 20);
+    const newEntry = JSON.stringify({ id: randomUUID(), timestamp: new Date().toISOString(), ...entry });
+    /*
+     * Atomically prepend the new entry and keep at most 19 existing entries (20 total).
+     * Single SQL statement — avoids the read-modify-write race condition that previously
+     * caused simultaneous Default + Agency writes to overwrite each other.
+     *
+     * jsonb_path_query_array(arr, '$[0 to 18]') returns the first 19 elements of the
+     * existing array, so combined with the new entry we never exceed 20.
+     */
     await pool.query(
       `INSERT INTO app_settings (key, value, updated_at)
-       VALUES ($1, $2, NOW())
-       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
-      [LOG_KEY, JSON.stringify(trimmed)],
+       VALUES ($1, jsonb_build_array($2::jsonb)::text, NOW())
+       ON CONFLICT (key) DO UPDATE
+       SET value = (
+         jsonb_build_array($2::jsonb) ||
+         jsonb_path_query_array(
+           COALESCE(app_settings.value::jsonb, '[]'::jsonb),
+           '$[0 to 18]'
+         )
+       )::text,
+       updated_at = NOW()`,
+      [LOG_KEY, newEntry],
     );
   } catch { /* non-blocking */ }
 }
