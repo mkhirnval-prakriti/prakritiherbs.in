@@ -1141,7 +1141,11 @@ function DownloadsPage() {
 /* ─── Main Shell ─── */
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
-  const [page, setPage] = useState<Page>("home");
+  const VALID_PAGES: Page[] = ["home", "orders", "abandoned", "analytics", "marketing", "settings", "downloads"];
+  const [page, setPage] = useState<Page>(() => {
+    const saved = localStorage.getItem("admin_page") as Page | null;
+    return saved && VALID_PAGES.includes(saved) ? saved : "home";
+  });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -1150,7 +1154,7 @@ export default function AdminDashboard() {
   const [homeLoading, setHomeLoading] = useState(true);
   const [abandonedCount, setAbandonedCount] = useState(0);
   const [settings, setSettings] = useState<Record<string, string>>({});
-  const adminUser = sessionStorage.getItem("admin_user") ?? "Admin";
+  const adminUser = localStorage.getItem("admin_user") ?? "Admin";
 
   useEffect(() => {
     if (!isAdminLoggedIn()) { setLocation("/admin/login"); return; }
@@ -1169,6 +1173,7 @@ export default function AdminDashboard() {
 
   function navigateTo(p: Page) {
     if (p === "abandoned") setAbandonedCount(0);
+    localStorage.setItem("admin_page", p);
     setPage(p);
   }
 

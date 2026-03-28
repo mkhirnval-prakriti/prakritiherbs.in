@@ -5,9 +5,14 @@ import autoTable from "jspdf-autotable";
 const API_BASE = "/api";
 const TOKEN_KEY = "admin_token";
 
-export function getAdminToken(): string | null { return sessionStorage.getItem(TOKEN_KEY); }
-export function setAdminToken(token: string): void { sessionStorage.setItem(TOKEN_KEY, token); }
-export function clearAdminToken(): void { sessionStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem("admin_user"); sessionStorage.removeItem("admin_role"); }
+export function getAdminToken(): string | null { return localStorage.getItem(TOKEN_KEY); }
+export function setAdminToken(token: string): void { localStorage.setItem(TOKEN_KEY, token); }
+export function clearAdminToken(): void {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem("admin_user");
+  localStorage.removeItem("admin_role");
+  localStorage.removeItem("admin_page");
+}
 export function isAdminLoggedIn(): boolean {
   const token = getAdminToken();
   if (!token) return false;
@@ -556,6 +561,31 @@ export async function downloadAgencyCSV(source?: string, label?: string): Promis
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+export async function downloadAgencyExcel(source?: string, label?: string): Promise<void> {
+  const params = new URLSearchParams({ format: "json" });
+  if (source) params.set("source", source);
+  const res = await authFetch(`/admin/export/orders?${params.toString()}`);
+  if (!res.ok) { alert("Export failed. Please try again."); return; }
+  const rows = await res.json() as Record<string, unknown>[];
+  if (!rows.length) { alert("No orders found for this source."); return; }
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+
+  // Auto-width columns
+  const colWidths = Object.keys(rows[0]).map((k) => ({
+    wch: Math.max(k.length, ...rows.map((r) => String(r[k] ?? "").length)) + 2,
+  }));
+  ws["!cols"] = colWidths;
+
+  const wb = XLSX.utils.book_new();
+  const sheetName = source ? source.toUpperCase().slice(0, 31) : "All Orders";
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+  const date = new Date().toISOString().slice(0, 10);
+  const filename = source ? `prakriti_${source}_orders_${date}.xlsx` : `prakriti_all_orders_${date}.xlsx`;
+  XLSX.writeFile(wb, filename);
 }
 
 export interface AgencyOrderStat {

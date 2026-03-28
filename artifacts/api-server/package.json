@@ -22,7 +22,8 @@
     "nodemailer": "^8.0.4",
     "pino": "^9",
     "pino-http": "^10",
-    "razorpay": "^2.9.6"
+    "razorpay": "^2.9.6",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",

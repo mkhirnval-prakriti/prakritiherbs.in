@@ -35,7 +35,7 @@ export default function AdminLogin() {
     try {
       const { token } = await adminLogin(username, password);
       setAdminToken(token);
-      sessionStorage.setItem("admin_user", username);
+      localStorage.setItem("admin_user", username);
       setLocation("/admin/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
@@ -67,8 +67,8 @@ export default function AdminLogin() {
     try {
       const { token, username: u, role } = await verifyOtp(email.trim(), otp.trim(), newPassword);
       setAdminToken(token);
-      sessionStorage.setItem("admin_user", u);
-      sessionStorage.setItem("admin_role", role);
+      localStorage.setItem("admin_user", u);
+      localStorage.setItem("admin_role", role);
       setStep("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "OTP verification failed");

@@ -4,7 +4,7 @@ import {
   fetchAgencies, saveAgency, toggleAgency, deleteAgency,
   testAgencyConnection, pauseAllAgencies,
   fetchCapiLog, clearCapiLog, fetchPendingCapi, retryCapi, dismissPendingCapi,
-  downloadAgencyCSV, fetchAgencyStats,
+  downloadAgencyCSV, downloadAgencyExcel, fetchAgencyStats,
   type Review, type AgencyProfile, type CapiLogEntry, type PendingCapiEvent, type AgencyOrderStat,
 } from "@/lib/adminApi";
 import {
@@ -313,10 +313,24 @@ function MarketingHub() {
     finally { setDownloading(null); }
   }
 
+  async function handleDownloadExcel(source: string, name: string) {
+    setDownloading(`${source}_xlsx`);
+    try { await downloadAgencyExcel(source, name); }
+    catch { alert("Excel export failed. Please try again."); }
+    finally { setDownloading(null); }
+  }
+
   async function handleDownloadAll() {
     setDownloading("__all__");
     try { await downloadAgencyCSV(); }
     catch { alert("Download failed. Please try again."); }
+    finally { setDownloading(null); }
+  }
+
+  async function handleDownloadAllExcel() {
+    setDownloading("__all_xlsx__");
+    try { await downloadAgencyExcel(); }
+    catch { alert("Excel export failed. Please try again."); }
     finally { setDownloading(null); }
   }
 
@@ -397,10 +411,17 @@ function MarketingHub() {
           </button>
           <button
             onClick={handleDownloadAll}
-            disabled={downloading === "__all__"}
+            disabled={!!downloading}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 disabled:opacity-50">
-            {downloading === "__all__" ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5" />}
-            Export All Orders
+            {downloading === "__all__" ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+            All CSV
+          </button>
+          <button
+            onClick={handleDownloadAllExcel}
+            disabled={!!downloading}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 disabled:opacity-50">
+            {downloading === "__all_xlsx__" ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5" />}
+            All Excel
           </button>
           <button onClick={() => setModal("new")}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white hover:brightness-110" style={{ background: G }}>
@@ -513,15 +534,26 @@ function MarketingHub() {
                         ts === "fail" ? <><WifiOff className="w-3 h-3" /> Failed</> :
                         <><Wifi className="w-3 h-3" /> Test Connection</>}
                     </button>
-                    <button
-                      onClick={() => handleDownload(agency.sourceName, agency.name)}
-                      disabled={downloading === agency.sourceName}
-                      title={`Download all ${agency.name} orders as CSV`}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 disabled:opacity-50">
-                      {downloading === agency.sourceName
-                        ? <><RefreshCw className="w-3 h-3 animate-spin" /> Downloading...</>
-                        : <><Download className="w-3 h-3" /> Download Report</>}
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleDownload(agency.sourceName, agency.name)}
+                        disabled={!!downloading}
+                        title="Download CSV"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 disabled:opacity-50">
+                        {downloading === agency.sourceName
+                          ? <><RefreshCw className="w-3 h-3 animate-spin" /> CSV...</>
+                          : <><Download className="w-3 h-3" /> CSV</>}
+                      </button>
+                      <button
+                        onClick={() => handleDownloadExcel(agency.sourceName, agency.name)}
+                        disabled={!!downloading}
+                        title="Download Excel (.xlsx)"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 disabled:opacity-50">
+                        {downloading === `${agency.sourceName}_xlsx`
+                          ? <><RefreshCw className="w-3 h-3 animate-spin" /> Excel...</>
+                          : <><FileSpreadsheet className="w-3 h-3" /> Excel</>}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -597,14 +629,26 @@ function MarketingHub() {
                         </span>
                       )}
                     </div>
-                    <button
-                      onClick={() => handleDownload(s.source, agency?.name || s.source)}
-                      disabled={downloading === s.source}
-                      className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 disabled:opacity-50">
-                      {downloading === s.source
-                        ? <><RefreshCw className="w-3 h-3 animate-spin" /> Downloading...</>
-                        : <><Download className="w-3 h-3" /> CSV</>}
-                    </button>
+                    <div className="shrink-0 flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleDownload(s.source, agency?.name || s.source)}
+                        disabled={!!downloading}
+                        title="Download CSV"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 disabled:opacity-50">
+                        {downloading === s.source
+                          ? <><RefreshCw className="w-3 h-3 animate-spin" /> CSV...</>
+                          : <><Download className="w-3 h-3" /> CSV</>}
+                      </button>
+                      <button
+                        onClick={() => handleDownloadExcel(s.source, agency?.name || s.source)}
+                        disabled={!!downloading}
+                        title="Download Excel (.xlsx)"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 disabled:opacity-50">
+                        {downloading === `${s.source}_xlsx`
+                          ? <><RefreshCw className="w-3 h-3 animate-spin" /> Excel...</>
+                          : <><FileSpreadsheet className="w-3 h-3" /> Excel</>}
+                      </button>
+                    </div>
                   </div>
                 );
               })}

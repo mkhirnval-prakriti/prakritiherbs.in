@@ -106,6 +106,30 @@ router.get("/admin/export/orders", requireAdmin, async (req, res) => {
       ].join(","));
     }
 
+    // JSON format — for client-side xlsx generation
+    if (format === "json") {
+      res.setHeader("Cache-Control", "no-cache");
+      res.json(rows.map((r) => ({
+        "Order ID":       r.order_id,
+        "Date (IST)":     toIST(r.created_at as Date),
+        "Customer Name":  r.name,
+        "Phone":          r.phone,
+        "City":           r.city ?? "",
+        "State":          r.state ?? "",
+        "Pincode":        r.pincode ?? "",
+        "Address":        r.address,
+        "Product":        r.product,
+        "Qty":            r.quantity,
+        "Amount (₹)":     999,
+        "Status":         r.status,
+        "Payment Method": r.payment_method ?? "",
+        "Payment Status": r.payment_status ?? "",
+        "Source":         r.source ?? "",
+        "Visitor Source": r.visitor_source ?? "",
+      })));
+      return;
+    }
+
     const csv = csvLines.join("\r\n");
 
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
