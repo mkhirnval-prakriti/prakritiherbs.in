@@ -117,6 +117,29 @@ export async function appendPendingEvent(event: Omit<PendingCapiEvent, "id" | "t
 /* ── CAPI test helper ───────────────────────────────────────────── */
 function sha256(s: string) { return createHash("sha256").update(s.trim().toLowerCase()).digest("hex"); }
 
+/**
+ * PUBLIC — no auth required.
+ * GET /api/public/agency-pixel?source=taj
+ * Returns the browser pixel ID for the matching active agency (if any).
+ * Frontend uses this to dynamically initialise the agency pixel via fbq('init').
+ */
+router.get("/public/agency-pixel", async (req, res) => {
+  const source = typeof req.query["source"] === "string" ? req.query["source"].trim().toLowerCase() : "";
+  if (!source) { res.json({ pixelId: null }); return; }
+  try {
+    const agencies = await readAgencies();
+    const match = agencies.find(
+      (a) => a.active && a.pixelId && a.sourceName?.trim().toLowerCase() === source,
+    );
+    res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=60");
+    res.json({ pixelId: match?.pixelId ?? null });
+  } catch {
+    res.json({ pixelId: null });
+  }
+});
+
+export { readAgencies };
+
 async function testCapiConnection(pixelId: string, token: string): Promise<{ ok: boolean; message: string }> {
   const url = `https://graph.facebook.com/v25.0/${pixelId}/events`;
   const payload = {
@@ -326,5 +349,4 @@ router.delete("/admin/capi-pending/:id", requireAdmin, async (req, res) => {
   } catch { res.status(500).json({ error: "Failed to delete pending event" }); }
 });
 
-export { readAgencies };
 export default router;

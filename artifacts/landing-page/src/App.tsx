@@ -9,6 +9,8 @@ import AdminLogin from "@/pages/admin/AdminLogin";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import { isAdminLoggedIn } from "@/lib/adminApi";
 import { firePageView, checkAndFirePurchase } from "@/lib/pixel";
+import { getAgencySource } from "@/lib/visitorTracking";
+import { initAgencyPixelIfNeeded } from "@/lib/agencyPixel";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,6 +58,20 @@ function PurchaseReturnDetector() {
   return null;
 }
 
+/**
+ * Double Pixel Tagging — if the visitor came via an agency link (e.g. ?source=taj),
+ * dynamically initialise the agency's Facebook pixel in the browser.
+ * After this, ALL fbq('track', ...) calls fire to BOTH Mandeep's main pixel
+ * AND the agency pixel simultaneously.
+ */
+function AgencyPixelInit() {
+  useEffect(() => {
+    const src = getAgencySource();
+    if (src) void initAgencyPixelIfNeeded(src);
+  }, []);
+  return null;
+}
+
 function ProtectedAdmin() {
   if (!isAdminLoggedIn()) {
     return <Redirect to="/admin/login" />;
@@ -68,6 +84,7 @@ function Router() {
     <>
       <RoutePageViewTracker />
       <PurchaseReturnDetector />
+      <AgencyPixelInit />
       <Switch>
         <Route path="/" component={Home} />
         <Route path="/admin" component={() => <Redirect to="/admin/login" />} />
