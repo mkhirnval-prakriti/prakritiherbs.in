@@ -630,10 +630,24 @@ export interface AgencyOrderStat {
   first_order: string | null;
   last_order: string | null;
 }
-export async function fetchAgencyStats(): Promise<AgencyOrderStat[]> {
+export interface AgencyStatsResponse {
+  rows: AgencyOrderStat[];
+  resetDate: string | null;
+}
+export async function fetchAgencyStats(): Promise<AgencyStatsResponse> {
   const res = await authFetch("/admin/export/agency-stats");
-  if (!res.ok) return [];
-  return res.json() as Promise<AgencyOrderStat[]>;
+  if (!res.ok) return { rows: [], resetDate: null };
+  return res.json() as Promise<AgencyStatsResponse>;
+}
+
+export async function resetStatsDate(): Promise<{ resetDate: string }> {
+  const res = await authFetch("/admin/agency-stats/reset", { method: "POST" });
+  if (!res.ok) throw new Error("Failed to reset stats");
+  return res.json() as Promise<{ resetDate: string }>;
+}
+
+export async function clearStatsResetDate(): Promise<void> {
+  await authFetch("/admin/agency-stats/reset", { method: "DELETE" });
 }
 
 /* ─── Staff Management ─── */

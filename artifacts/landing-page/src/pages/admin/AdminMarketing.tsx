@@ -4,7 +4,7 @@ import {
   fetchAgencies, saveAgency, toggleAgency, deleteAgency,
   testAgencyConnection, pauseAllAgencies,
   fetchCapiLog, clearCapiLog, fetchPendingCapi, retryCapi, dismissPendingCapi,
-  downloadAgencyCSV, downloadAgencyExcel, fetchAgencyStats,
+  downloadAgencyCSV, downloadAgencyExcel, fetchAgencyStats, resetStatsDate, clearStatsResetDate,
   type Review, type AgencyProfile, type CapiLogEntry, type PendingCapiEvent, type AgencyOrderStat,
 } from "@/lib/adminApi";
 import {
@@ -250,6 +250,9 @@ function MarketingHub() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [agencyStats, setAgencyStats] = useState<AgencyOrderStat[]>([]);
+  const [statsResetDate, setStatsResetDate] = useState<string | null>(null);
+  const [statsResetting, setStatsResetting] = useState(false);
+  const [resetStatsConfirm, setResetStatsConfirm] = useState(false);
   const [testStatus, setTestStatus] = useState<Record<string, TestStatus>>({});
   const [testMsg, setTestMsg] = useState<Record<string, string>>({});
   const [pausingAll, setPausingAll] = useState(false);
@@ -275,11 +278,17 @@ function MarketingHub() {
     } finally { setLogLoading(false); }
   }, []);
 
+  const loadStats = useCallback(async () => {
+    const r = await fetchAgencyStats();
+    setAgencyStats(r.rows);
+    setStatsResetDate(r.resetDate);
+  }, []);
+
   useEffect(() => {
     void load();
     void loadHealth();
-    void fetchAgencyStats().then(setAgencyStats);
-  }, [load, loadHealth]);
+    void loadStats();
+  }, [load, loadHealth, loadStats]);
 
   async function handleToggle(id: string) {
     setToggling(id);
@@ -296,6 +305,27 @@ function MarketingHub() {
     try { await deleteAgency(id); setAgencies((prev) => prev.filter((a) => a.id !== id)); }
     catch (ex) { alert(ex instanceof Error ? ex.message : "Failed"); }
     finally { setDeleting(null); }
+  }
+
+  async function handleResetStats() {
+    setResetStatsConfirm(false); setStatsResetting(true);
+    try {
+      const r = await resetStatsDate();
+      setStatsResetDate(r.resetDate);
+      setAgencyStats([]);
+      void loadStats();
+    } catch (e) { alert(e instanceof Error ? e.message : "Reset failed"); }
+    finally { setStatsResetting(false); }
+  }
+
+  async function handleClearStatsReset() {
+    setStatsResetting(true);
+    try {
+      await clearStatsResetDate();
+      setStatsResetDate(null);
+      void loadStats();
+    } catch (e) { alert(e instanceof Error ? e.message : "Failed to clear reset"); }
+    finally { setStatsResetting(false); }
   }
 
   function handleSaved(updated: AgencyProfile) {
@@ -586,22 +616,72 @@ function MarketingHub() {
           </div>
         </div>
 
+        {/* Reset Stats Confirmation Modal */}
+        {resetStatsConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                  <RotateCcw className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900">Stats Reset करें?</h3>
+                  <p className="text-xs text-gray-500">डेटा delete नहीं होगा — सिर्फ view बदलेगा</p>
+                </div>
+              </div>
+              <p className="text-sm text-gray-700 mb-5">
+                आज से नई tracking शुरू होगी। पुराने orders का data safe रहेगा, सिर्फ
+                <strong> "Orders by Source"</strong> आज की date से show करेगा।
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => setResetStatsConfirm(false)} className="flex-1 px-4 py-2 rounded-lg text-sm bg-gray-100 hover:bg-gray-200 text-gray-600">रद्द करें</button>
+                <button onClick={() => void handleResetStats()} disabled={statsResetting}
+                  className="flex-1 px-4 py-2 rounded-lg text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-60">
+                  {statsResetting ? <RefreshCw className="w-4 h-4 animate-spin inline" /> : "हाँ, Reset करें"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Agency Order Stats */}
-        {agencyStats.length > 0 && (
+        {(agencyStats.length > 0 || statsResetDate) && (
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-wrap gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <BarChart2 className="w-4 h-4 text-indigo-600" />
                 <span className="font-semibold text-sm text-gray-800">Orders by Source</span>
-                <span className="text-xs text-gray-400 ml-1">— all sources tracked in DB</span>
+                {statsResetDate ? (
+                  <span className="text-xs bg-amber-50 border border-amber-200 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+                    📅 {new Date(statsResetDate).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric" })} से
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-400 ml-1">— सभी समय</span>
+                )}
+                {statsResetDate && (
+                  <button onClick={() => void handleClearStatsReset()} disabled={statsResetting}
+                    className="text-xs text-blue-600 hover:text-blue-800 underline disabled:opacity-50">
+                    All Time दिखाएं
+                  </button>
+                )}
               </div>
-              <button
-                onClick={handleDownloadAll}
-                disabled={downloading === "__all__"}
-                className="flex items-center gap-1 text-xs font-medium text-emerald-700 hover:text-emerald-900 disabled:opacity-50">
-                {downloading === "__all__" ? <RefreshCw className="w-3 h-3 animate-spin" /> : <FileSpreadsheet className="w-3 h-3" />}
-                Export All
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setResetStatsConfirm(true)}
+                  disabled={statsResetting}
+                  title="आज से नई tracking शुरू करें"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 disabled:opacity-50">
+                  {statsResetting ? <RefreshCw className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+                  Reset Stats
+                </button>
+                <button
+                  onClick={handleDownloadAll}
+                  disabled={!!downloading}
+                  className="flex items-center gap-1 text-xs font-medium text-emerald-700 hover:text-emerald-900 disabled:opacity-50">
+                  {downloading === "__all__" ? <RefreshCw className="w-3 h-3 animate-spin" /> : <FileSpreadsheet className="w-3 h-3" />}
+                  Export All
+                </button>
+              </div>
             </div>
             <div className="divide-y divide-gray-50">
               {agencyStats.map((s) => {
@@ -664,14 +744,15 @@ function MarketingHub() {
               <span className="text-sm font-semibold text-gray-700">CAPI Activity Log</span>
               <span className="text-xs text-gray-400">— last {log.length} events</span>
             </div>
-            <div className="flex gap-2">
-              <button onClick={loadHealth} className="p-1 rounded text-gray-400 hover:text-gray-600">
+            <div className="flex items-center gap-2">
+              <button onClick={loadHealth} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100" title="Refresh log">
                 <RefreshCw className={`w-3.5 h-3.5 ${logLoading ? "animate-spin" : ""}`} />
               </button>
               {log.length > 0 && (
                 <button onClick={async () => { await clearCapiLog(); setLog([]); }}
-                  className="p-1 rounded text-gray-400 hover:text-red-500" title="Clear log">
-                  <Trash className="w-3.5 h-3.5" />
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 transition-colors">
+                  <Trash className="w-3 h-3" />
+                  Clear Log
                 </button>
               )}
             </div>

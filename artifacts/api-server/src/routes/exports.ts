@@ -144,9 +144,22 @@ router.get("/admin/export/orders", requireAdmin, async (req, res) => {
   }
 });
 
-/** Summary stats for an agency — used for the report card in the UI */
-router.get("/admin/export/agency-stats", requireAdmin, async (req, res) => {
+const STATS_RESET_KEY = "stats_reset_date";
+
+/** Summary stats for an agency — filtered by reset date if set */
+router.get("/admin/export/agency-stats", requireAdmin, async (_req, res) => {
   try {
+    // Check if a reset date is stored
+    const { rows: cfgRows } = await pool.query<{ value: string }>(
+      `SELECT value FROM app_settings WHERE key = $1 LIMIT 1`, [STATS_RESET_KEY]
+    );
+    const resetDate: string | null = cfgRows[0]?.value ?? null;
+
+    const dateFilter = resetDate
+      ? `AND created_at >= $1`
+      : "";
+    const params = resetDate ? [resetDate] : [];
+
     const { rows } = await pool.query(`
       SELECT
         source,
@@ -157,14 +170,47 @@ router.get("/admin/export/agency-stats", requireAdmin, async (req, res) => {
         MIN(created_at)                                            AS first_order,
         MAX(created_at)                                            AS last_order
       FROM orders
-      WHERE source IS NOT NULL AND source != ''
+      WHERE source IS NOT NULL AND source != '' AND deleted_at IS NULL
+      ${dateFilter}
       GROUP BY source
       ORDER BY total_orders DESC
-    `);
-    res.json(rows);
+    `, params);
+
+    res.json({ rows, resetDate: resetDate ?? null });
   } catch {
     res.status(500).json({ error: "Failed to fetch agency stats" });
   }
+});
+
+/** Get current stats reset date */
+router.get("/admin/agency-stats/reset", requireAdmin, async (_req, res) => {
+  try {
+    const { rows } = await pool.query<{ value: string }>(
+      `SELECT value FROM app_settings WHERE key = $1 LIMIT 1`, [STATS_RESET_KEY]
+    );
+    res.json({ resetDate: rows[0]?.value ?? null });
+  } catch { res.status(500).json({ error: "Failed to get reset date" }); }
+});
+
+/** Set stats reset date to now (start fresh tracking) */
+router.post("/admin/agency-stats/reset", requireAdmin, async (_req, res) => {
+  try {
+    const now = new Date().toISOString();
+    await pool.query(
+      `INSERT INTO app_settings (key, value) VALUES ($1, $2)
+       ON CONFLICT (key) DO UPDATE SET value = $2`,
+      [STATS_RESET_KEY, now]
+    );
+    res.json({ ok: true, resetDate: now });
+  } catch { res.status(500).json({ error: "Failed to set reset date" }); }
+});
+
+/** Clear stats reset date (show all-time stats again) */
+router.delete("/admin/agency-stats/reset", requireAdmin, async (_req, res) => {
+  try {
+    await pool.query(`DELETE FROM app_settings WHERE key = $1`, [STATS_RESET_KEY]);
+    res.json({ ok: true, resetDate: null });
+  } catch { res.status(500).json({ error: "Failed to clear reset date" }); }
 });
 
 export default router;
