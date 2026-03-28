@@ -25,7 +25,7 @@ export const createOrderBodyNameMax = 100;
 export const createOrderBodyPhoneMin = 10;
 export const createOrderBodyPhoneMax = 15;
 
-export const createOrderBodyAddressMin = 10;
+export const createOrderBodyAddressMin = 1;
 export const createOrderBodyAddressMax = 500;
 
 export const createOrderBodyPincodeMin = 6;

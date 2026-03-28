@@ -72,7 +72,7 @@ components:
           maxLength: 15
         address:
           type: string
-          minLength: 10
+          minLength: 1
           maxLength: 500
         pincode:
           type: string

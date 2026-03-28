@@ -182,7 +182,7 @@ export function OrderModal({ open, onClose, bannerUrl }: { open: boolean; onClos
     const e: Record<string, string> = {};
     if (!name.trim() || name.trim().length < 2) e.name = "पूरा नाम डालें";
     if (!phone.trim() || phone.replace(/\D/g, "").length < 10) e.phone = "10 अंकों का मोबाइल नंबर डालें";
-    if (!address.trim() || address.trim().length < 10) e.address = "पूरा पता डालें";
+    if (!address.trim()) e.address = "पता डालें (शहर का नाम भी मान्य है)";
     if (!pincode.trim() || pincode.replace(/\D/g, "").length !== 6) e.pincode = "6 अंकों का पिनकोड डालें";
     setErrors(e);
     return Object.keys(e).length === 0;
