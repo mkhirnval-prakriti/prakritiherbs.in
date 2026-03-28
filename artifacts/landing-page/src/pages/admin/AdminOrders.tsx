@@ -5,7 +5,8 @@ import {
   bulkUpdateOrderStatus, shipViaShinprocket, updateIndiaPostTracking,
   sendWhatsAppToOrder, shipViaShadowfax, getShadowfaxLabel,
   deleteOrder, bulkDeleteOrders, isSuperAdmin,
-  type Order, type OrderStats,
+  fetchTrashOrders, restoreOrdersFromTrash, emptyTrash, permanentDeleteOrder,
+  type Order, type OrderStats, type TrashOrder,
 } from "@/lib/adminApi";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -362,6 +363,9 @@ function getPresetDates(preset: DatePreset): { from: string; to: string } {
 }
 
 export function AdminOrders({ globalSearch, settings }: { globalSearch: string; settings: Record<string, string> }) {
+  const [tab, setTab] = useState<"orders" | "trash">("orders");
+
+  /* ── Orders tab state ── */
   const [orders, setOrders] = useState<Order[]>([]);
   const [stats, setStats] = useState<OrderStats | null>(null);
   const [total, setTotal] = useState(0);
@@ -379,6 +383,17 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  /* ── Trash tab state ── */
+  const [trashOrders, setTrashOrders] = useState<TrashOrder[]>([]);
+  const [trashLoading, setTrashLoading] = useState(false);
+  const [trashSelected, setTrashSelected] = useState<Set<number>>(new Set());
+  const [restoring, setRestoring] = useState(false);
+  const [emptyingTrash, setEmptyingTrash] = useState(false);
+  const [permDeleting, setPermDeleting] = useState<number | null>(null);
+  const [permDelConfirm, setPermDelConfirm] = useState<number | null>(null);
+  const [emptyConfirm, setEmptyConfirm] = useState(false);
+
   const isSA = isSuperAdmin();
   const LIMIT = 25;
 
@@ -418,14 +433,57 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
 
   async function handleBulkDelete() {
     if (selected.size === 0) return;
-    if (!confirm(`⚠️ यह एक्शन पूरी तरह अपरिवर्सनीय है!\n\nक्या आप ${selected.size} ऑर्डर हमेशा के लिए delete करना चाहते हैं?\n\n"OK" दबाने से ये ऑर्डर और इनका सारा डेटा मिट जाएगा।`)) return;
+    if (!confirm(`क्या आप ${selected.size} ऑर्डर Trash में भेजना चाहते हैं?\n\nTrash से बाद में Restore किया जा सकता है।`)) return;
     setBulkDeleting(true);
     try {
       const r = await bulkDeleteOrders([...selected]);
-      alert(`✅ ${r.deleted} orders deleted`);
+      alert(`✅ ${r.deleted} orders ट्रैश में भेज दिए गए`);
       void loadOrders(page);
-    } catch (e) { alert(e instanceof Error ? e.message : "Bulk delete failed"); }
+    } catch (e) { alert(e instanceof Error ? e.message : "Move to trash failed"); }
     finally { setBulkDeleting(false); }
+  }
+
+  /* ── Trash Tab Handlers ── */
+  const loadTrash = useCallback(async () => {
+    setTrashLoading(true); setTrashSelected(new Set());
+    try { const r = await fetchTrashOrders(); setTrashOrders(r.orders); }
+    catch { alert("Trash load failed"); }
+    finally { setTrashLoading(false); }
+  }, []);
+
+  useEffect(() => { if (tab === "trash") void loadTrash(); }, [tab, loadTrash]);
+
+  function toggleTrash(id: number) { setTrashSelected((p) => { const s = new Set(p); s.has(id) ? s.delete(id) : s.add(id); return s; }); }
+  function toggleAllTrash() { setTrashSelected((p) => p.size === trashOrders.length ? new Set() : new Set(trashOrders.map((o) => o.id))); }
+
+  async function handleRestore() {
+    if (trashSelected.size === 0) return;
+    setRestoring(true);
+    try {
+      const r = await restoreOrdersFromTrash([...trashSelected]);
+      alert(`✅ ${r.restored} ऑर्डर वापस restore हो गए`);
+      void loadTrash();
+    } catch (e) { alert(e instanceof Error ? e.message : "Restore failed"); }
+    finally { setRestoring(false); }
+  }
+
+  async function handleEmptyTrash() {
+    setEmptyConfirm(false); setEmptyingTrash(true);
+    try {
+      const r = await emptyTrash();
+      alert(`🗑️ ${r.deleted} ऑर्डर हमेशा के लिए डिलीट हो गए`);
+      void loadTrash();
+    } catch (e) { alert(e instanceof Error ? e.message : "Empty trash failed"); }
+    finally { setEmptyingTrash(false); }
+  }
+
+  async function handlePermDelete(id: number) {
+    setPermDelConfirm(null); setPermDeleting(id);
+    try {
+      await permanentDeleteOrder(id);
+      setTrashOrders((prev) => prev.filter((o) => o.id !== id));
+    } catch (e) { alert(e instanceof Error ? e.message : "Permanent delete failed"); }
+    finally { setPermDeleting(null); }
   }
 
   function handlePresetChange(preset: DatePreset) {
@@ -452,10 +510,52 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
 
   return (
     <div className="space-y-4">
+      {/* ── Empty Trash Confirmation Modal ── */}
+      {emptyConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900">Trash खाली करें</h3>
+                <p className="text-xs text-gray-500">यह एक्शन वापस नहीं होगा</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-700 mb-5">
+              Trash के <strong>{trashOrders.length} ऑर्डर</strong> हमेशा के लिए डिलीट हो जाएंगे।
+              यह एक्शन <strong className="text-red-600">पूरी तरह अपरिवर्सनीय</strong> है।
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => setEmptyConfirm(false)} className="flex-1 px-4 py-2 rounded-lg text-sm bg-gray-100 hover:bg-gray-200 text-gray-600">रद्द करें</button>
+              <button onClick={() => void handleEmptyTrash()} disabled={emptyingTrash}
+                className="flex-1 px-4 py-2 rounded-lg text-sm font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-60">
+                {emptyingTrash ? <RefreshCw className="w-4 h-4 animate-spin inline" /> : "हाँ, खाली करें"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Orders</h1>
-          {stats && <p className="text-xs text-gray-500">{stats.total.toLocaleString()} total · {stats.today} today · {stats.new} new</p>}
+          <div className="flex items-center gap-2 mb-1">
+            <h1 className="text-xl font-bold text-gray-900">Orders</h1>
+            {/* Tab Toggle */}
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-semibold">
+              <button onClick={() => setTab("orders")}
+                className={`px-3 py-1.5 transition-colors ${tab === "orders" ? "bg-green-700 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>
+                📋 All Orders
+              </button>
+              <button onClick={() => setTab("trash")}
+                className={`flex items-center gap-1 px-3 py-1.5 transition-colors ${tab === "trash" ? "bg-red-600 text-white" : "bg-white text-gray-500 hover:bg-red-50"}`}>
+                <Trash2 className="w-3 h-3" /> Trash {trashOrders.length > 0 && <span className={`rounded-full px-1.5 py-0.5 text-xs font-bold ${tab === "trash" ? "bg-red-500" : "bg-red-100 text-red-600"}`}>{trashOrders.length}</span>}
+              </button>
+            </div>
+          </div>
+          {tab === "orders" && stats && <p className="text-xs text-gray-500">{stats.total.toLocaleString()} total · {stats.today} today · {stats.new} new</p>}
+          {tab === "trash" && <p className="text-xs text-gray-500">{trashOrders.length} orders in trash · 30 दिन बाद auto-delete होंगे</p>}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-gray-500 font-medium">Download:</span>
@@ -545,8 +645,8 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
             </button>
             {isSA && (
               <button onClick={() => void handleBulkDelete()} disabled={bulkDeleting}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-60 transition-colors">
-                {bulkDeleting ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />} Bulk Delete
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-orange-600 hover:bg-orange-700 disabled:opacity-60 transition-colors">
+                {bulkDeleting ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />} Move to Trash
               </button>
             )}
             <button onClick={() => setSelected(new Set())} className="text-xs text-gray-400 hover:text-gray-600">Deselect</button>
@@ -676,8 +776,8 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
                                   </div>
                                 ) : (
                                   <button onClick={() => setDeleteConfirm(order.id)}
-                                    title="Delete this order"
-                                    className="ml-1 p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                                    title="Move to Trash"
+                                    className="ml-1 p-1.5 rounded-lg text-gray-300 hover:text-orange-500 hover:bg-orange-50 transition-colors">
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
                                 )
@@ -707,6 +807,128 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
           </div>
         )}
       </div>
+
+      {/* ══════════════════════════════════════════
+          🗑️ TRASH VIEW
+          ══════════════════════════════════════════ */}
+      {tab === "trash" && (
+        <div className="space-y-3">
+          {/* Trash Header Actions */}
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex flex-wrap items-center gap-3">
+            <Trash2 className="w-5 h-5 text-red-500 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-red-800">
+                {trashOrders.length} ऑर्डर Trash में हैं
+              </p>
+              <p className="text-xs text-red-600">30 दिन बाद automatically permanent delete हो जाएंगे</p>
+            </div>
+            <button onClick={() => void loadTrash()} className="p-2 rounded-lg bg-red-100 hover:bg-red-200 text-red-600" title="Refresh Trash">
+              <RefreshCw className={`w-4 h-4 ${trashLoading ? "animate-spin" : ""}`} />
+            </button>
+            {trashSelected.size > 0 && (
+              <button onClick={() => void handleRestore()} disabled={restoring}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold text-white bg-green-600 hover:bg-green-700 disabled:opacity-60">
+                {restoring ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckSquare className="w-3.5 h-3.5" />}
+                Restore ({trashSelected.size})
+              </button>
+            )}
+            {isSA && trashOrders.length > 0 && (
+              <button onClick={() => setEmptyConfirm(true)} disabled={emptyingTrash}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-60">
+                {emptyingTrash ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                Empty Trash
+              </button>
+            )}
+          </div>
+
+          {/* Trash Table */}
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            {trashLoading && trashOrders.length === 0
+              ? <div className="flex items-center justify-center h-32 gap-2 text-gray-400"><RefreshCw className="w-5 h-5 animate-spin" /> Loading...</div>
+              : trashOrders.length === 0
+                ? <div className="flex flex-col items-center justify-center h-32 text-gray-400"><Trash2 className="w-8 h-8 mb-2 opacity-20" /><p className="text-sm">Trash खाली है</p></div>
+                : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-red-50 border-b border-red-100">
+                        <tr>
+                          <th className="px-3 py-3 text-left">
+                            <button onClick={toggleAllTrash} className="text-gray-400 hover:text-gray-700">
+                              {trashSelected.size === trashOrders.length && trashOrders.length > 0
+                                ? <CheckSquare className="w-4 h-4 text-red-500" />
+                                : <Square className="w-4 h-4" />}
+                            </button>
+                          </th>
+                          {["Order ID", "Customer", "Mobile", "Amount", "Status", "Source", "Trashed On", "Actions"].map((h) => (
+                            <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-red-700 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {trashOrders.map((order) => (
+                          <tr key={order.id} className={`hover:bg-red-50/40 transition-colors ${trashSelected.has(order.id) ? "bg-red-50" : "bg-white"}`}>
+                            <td className="px-3 py-3">
+                              <button onClick={() => toggleTrash(order.id)} className="text-gray-400 hover:text-gray-700">
+                                {trashSelected.has(order.id) ? <CheckSquare className="w-4 h-4 text-red-500" /> : <Square className="w-4 h-4" />}
+                              </button>
+                            </td>
+                            <td className="px-3 py-3 text-xs font-mono text-gray-500">{order.order_id}</td>
+                            <td className="px-3 py-3">
+                              <div className="font-medium text-gray-900 text-sm">{order.name}</div>
+                              <div className="text-xs text-gray-400 truncate max-w-[140px]" title={order.address}>{order.address}</div>
+                            </td>
+                            <td className="px-3 py-3 text-xs font-mono text-gray-600">{order.phone}</td>
+                            <td className="px-3 py-3 text-xs font-bold text-green-700">₹{(999 * order.quantity).toLocaleString()}</td>
+                            <td className="px-3 py-3">
+                              <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold border ${
+                                order.status === "New" ? "bg-blue-50 text-blue-700 border-blue-200"
+                                : order.status === "Delivered" ? "bg-green-50 text-green-700 border-green-200"
+                                : order.status === "Cancelled" ? "bg-red-50 text-red-700 border-red-200"
+                                : "bg-gray-50 text-gray-600 border-gray-200"}`}>
+                                {order.status}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3 text-xs text-gray-500">{order.source || "—"}</td>
+                            <td className="px-3 py-3 text-xs text-red-500 whitespace-nowrap">{fmtShort(order.deleted_at)}</td>
+                            <td className="px-3 py-3">
+                              <div className="flex items-center gap-1.5">
+                                {/* Restore */}
+                                <button onClick={() => void restoreOrdersFromTrash([order.id]).then(() => {
+                                  setTrashOrders((prev) => prev.filter((o) => o.id !== order.id));
+                                }).catch((e) => alert(e instanceof Error ? e.message : "Restore failed"))}
+                                  title="Restore this order"
+                                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 transition-colors">
+                                  ↩ Restore
+                                </button>
+                                {/* Permanent Delete */}
+                                {isSA && (
+                                  permDelConfirm === order.id ? (
+                                    <div className="flex items-center gap-1">
+                                      <button onClick={() => void handlePermDelete(order.id)} disabled={permDeleting === order.id}
+                                        className="px-2 py-1 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 whitespace-nowrap">
+                                        {permDeleting === order.id ? <RefreshCw className="w-3 h-3 animate-spin inline" /> : "हमेशा के लिए"}
+                                      </button>
+                                      <button onClick={() => setPermDelConfirm(null)} className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-lg">नहीं</button>
+                                    </div>
+                                  ) : (
+                                    <button onClick={() => setPermDelConfirm(order.id)}
+                                      title="Permanently delete"
+                                      className="p-1.5 rounded-lg text-gray-300 hover:text-red-600 hover:bg-red-50 transition-colors">
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

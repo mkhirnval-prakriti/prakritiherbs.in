@@ -313,15 +313,48 @@ export async function deleteDownload(id: number): Promise<void> {
   if (!res.ok) throw new Error("Delete failed");
 }
 
+/** Move a single order to trash (soft delete) */
 export async function deleteOrder(id: number): Promise<void> {
   const res = await authFetch(`/admin/orders/${id}`, { method: "DELETE" });
   if (!res.ok) { const e = await res.json() as { error: string }; throw new Error(e.error); }
 }
 
+/** Move multiple orders to trash (soft delete) */
 export async function bulkDeleteOrders(ids: number[]): Promise<{ deleted: number }> {
   const res = await authFetch("/admin/orders/bulk-delete", { method: "POST", body: JSON.stringify({ ids }) });
   if (!res.ok) { const e = await res.json() as { error: string }; throw new Error(e.error); }
   return res.json();
+}
+
+export interface TrashOrder {
+  id: number; order_id: string; name: string; phone: string;
+  address: string; pincode: string; city: string | null; state: string | null;
+  quantity: number; product: string; source: string; status: string;
+  payment_method: string | null; payment_status: string | null;
+  visitor_source: string | null; created_at: string; deleted_at: string;
+}
+
+export async function fetchTrashOrders(): Promise<{ orders: TrashOrder[]; total: number }> {
+  const res = await authFetch("/admin/orders/trash");
+  if (!res.ok) throw new Error("Failed to fetch trash");
+  return res.json();
+}
+
+export async function restoreOrdersFromTrash(ids: number[]): Promise<{ restored: number }> {
+  const res = await authFetch("/admin/orders/trash/restore", { method: "POST", body: JSON.stringify({ ids }) });
+  if (!res.ok) { const e = await res.json() as { error: string }; throw new Error(e.error); }
+  return res.json();
+}
+
+export async function emptyTrash(): Promise<{ deleted: number }> {
+  const res = await authFetch("/admin/orders/trash/empty", { method: "DELETE" });
+  if (!res.ok) { const e = await res.json() as { error: string }; throw new Error(e.error); }
+  return res.json();
+}
+
+export async function permanentDeleteOrder(id: number): Promise<void> {
+  const res = await authFetch(`/admin/orders/trash/${id}`, { method: "DELETE" });
+  if (!res.ok) { const e = await res.json() as { error: string }; throw new Error(e.error); }
 }
 
 export async function deleteAbandonedCartAdmin(id: number): Promise<void> {

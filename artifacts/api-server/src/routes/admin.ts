@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, pool, ordersTable, adminDownloadsTable, abandonedCartsTable, appSettingsTable } from "@workspace/db";
-import { eq, desc, like, and, gte, lte, sql, or, inArray } from "drizzle-orm";
+import { eq, desc, like, and, gte, lte, sql, or, inArray, isNull, isNotNull } from "drizzle-orm";
 import { requireAdmin, requireSuperAdmin, signAdminToken, type AdminRole } from "../middlewares/requireAdmin";
 import { getSettings, saveSettingsBatch, getSetting } from "./settings";
 import crypto from "crypto";
@@ -111,7 +111,8 @@ router.delete("/admin/staff/:id", requireSuperAdmin, async (req, res) => {
 router.get("/admin/orders", requireAdmin, async (req, res) => {
   try {
     const { search, status, dateFrom, dateTo, page = "1", limit = "50" } = req.query as Record<string, string>;
-    const conditions = [];
+    // Always exclude soft-deleted (trashed) orders
+    const conditions = [isNull(ordersTable.deletedAt)];
     if (search) conditions.push(or(like(ordersTable.name, `%${search}%`), like(ordersTable.phone, `%${search}%`), like(ordersTable.address, `%${search}%`)));
     if (status && status !== "all") conditions.push(eq(ordersTable.status, status));
     if (dateFrom) conditions.push(gte(ordersTable.createdAt, new Date(dateFrom)));
@@ -119,7 +120,7 @@ router.get("/admin/orders", requireAdmin, async (req, res) => {
 
     const pageNum = Math.max(1, parseInt(page, 10));
     const limitNum = Math.min(200, Math.max(1, parseInt(limit, 10)));
-    const where = conditions.length > 0 ? and(...conditions) : undefined;
+    const where = and(...conditions);
 
     const [orders, countResult] = await Promise.all([
       db.select().from(ordersTable).where(where).orderBy(desc(ordersTable.createdAt)).limit(limitNum).offset((pageNum - 1) * limitNum),
@@ -135,7 +136,7 @@ router.get("/admin/orders", requireAdmin, async (req, res) => {
       shippedCount: sql<number>`COUNT(*) FILTER (WHERE status = 'Shipped')`,
       cancelledCount: sql<number>`COUNT(*) FILTER (WHERE status = 'Cancelled')`,
       deliveredCount: sql<number>`COUNT(*) FILTER (WHERE status = 'Delivered')`,
-    }).from(ordersTable);
+    }).from(ordersTable).where(isNull(ordersTable.deletedAt));
 
     const phoneList = [...new Set(orders.map((o) => o.phone))];
     let repeatPhones = new Set<string>();
@@ -221,33 +222,100 @@ router.get("/admin/delete-audit-log", requireSuperAdmin, async (_req, res) => {
   } catch { return res.status(500).json({ error: "Failed to fetch audit log" }); }
 });
 
-/* ─── Order Delete (Super Admin only) ─── */
+/* ─── Order Delete = Soft Delete → Move to Trash (Super Admin only) ─── */
 router.delete("/admin/orders/:id", requireSuperAdmin, async (req, res) => {
   try {
     const id = parseInt(req.params["id"] ?? "0", 10);
     if (!id) return res.status(400).json({ error: "Invalid id" });
-    const actor = ((req as unknown) as { admin: { username: string } }).admin.username;
-    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+    const [order] = await db.select().from(ordersTable).where(and(eq(ordersTable.id, id), isNull(ordersTable.deletedAt)));
     if (!order) return res.status(404).json({ error: "Order not found" });
-    await db.delete(ordersTable).where(eq(ordersTable.id, id));
-    await appendDeleteAudit([{ entityType: "order", entityId: id, entityRef: `${order.orderId} — ${order.name} (${order.phone})`, deletedBy: actor, deletedAt: new Date().toISOString() }]);
-    return res.json({ ok: true });
-  } catch { return res.status(500).json({ error: "Delete failed" }); }
+    await pool.query(`UPDATE orders SET deleted_at = NOW() WHERE id = $1`, [id]);
+    return res.json({ ok: true, trashed: true });
+  } catch { return res.status(500).json({ error: "Move to trash failed" }); }
 });
 
 router.post("/admin/orders/bulk-delete", requireSuperAdmin, async (req, res) => {
   try {
     const { ids } = req.body as { ids?: number[] };
     if (!ids || !Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: "ids required" });
+    const { rows } = await pool.query<{ id: number }>(
+      `UPDATE orders SET deleted_at = NOW() WHERE id = ANY($1) AND deleted_at IS NULL RETURNING id`, [ids]
+    );
+    return res.json({ deleted: rows.length });
+  } catch { return res.status(500).json({ error: "Bulk move to trash failed" }); }
+});
+
+/* ─── Trash Management (Super Admin only) ─── */
+
+/** GET /admin/orders/trash — list all soft-deleted orders */
+router.get("/admin/orders/trash", requireSuperAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query<{
+      id: number; order_id: string; name: string; phone: string; address: string;
+      pincode: string; city: string | null; state: string | null;
+      quantity: number; product: string; source: string; status: string;
+      payment_method: string | null; payment_status: string | null;
+      visitor_source: string | null; created_at: Date; deleted_at: Date;
+    }>(
+      `SELECT id, order_id, name, phone, address, pincode, city, state,
+              quantity, product, source, status, payment_method, payment_status,
+              visitor_source, created_at, deleted_at
+       FROM orders
+       WHERE deleted_at IS NOT NULL
+       ORDER BY deleted_at DESC`
+    );
+    res.json({ orders: rows, total: rows.length });
+  } catch { res.status(500).json({ error: "Failed to fetch trash" }); }
+});
+
+/** POST /admin/orders/trash/restore — restore selected orders from trash */
+router.post("/admin/orders/trash/restore", requireSuperAdmin, async (req, res) => {
+  try {
+    const { ids } = req.body as { ids?: number[] };
+    if (!ids || !Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: "ids required" });
+    const { rows } = await pool.query<{ id: number }>(
+      `UPDATE orders SET deleted_at = NULL WHERE id = ANY($1) AND deleted_at IS NOT NULL RETURNING id`, [ids]
+    );
+    return res.json({ restored: rows.length });
+  } catch { return res.status(500).json({ error: "Restore failed" }); }
+});
+
+/** DELETE /admin/orders/trash/empty — permanently delete all trashed orders */
+router.delete("/admin/orders/trash/empty", requireSuperAdmin, async (req, res) => {
+  try {
     const actor = ((req as unknown) as { admin: { username: string } }).admin.username;
     const { rows } = await pool.query<{ id: number; order_id: string; name: string; phone: string }>(
-      `SELECT id, order_id, name, phone FROM orders WHERE id = ANY($1)`, [ids]
+      `DELETE FROM orders WHERE deleted_at IS NOT NULL RETURNING id, order_id, name, phone`
     );
-    await pool.query(`DELETE FROM orders WHERE id = ANY($1)`, [ids]);
-    const now = new Date().toISOString();
-    await appendDeleteAudit(rows.map((o) => ({ entityType: "order" as const, entityId: o.id, entityRef: `${o.order_id} — ${o.name} (${o.phone})`, deletedBy: actor, deletedAt: now })));
+    if (rows.length > 0) {
+      const now = new Date().toISOString();
+      await appendDeleteAudit(rows.map((o) => ({
+        entityType: "order" as const, entityId: o.id,
+        entityRef: `${o.order_id} — ${o.name} (${o.phone}) [TRASH_EMPTY]`,
+        deletedBy: actor, deletedAt: now,
+      })));
+    }
     return res.json({ deleted: rows.length });
-  } catch { return res.status(500).json({ error: "Bulk delete failed" }); }
+  } catch { return res.status(500).json({ error: "Empty trash failed" }); }
+});
+
+/** DELETE /admin/orders/trash/:id — permanently delete a single trashed order */
+router.delete("/admin/orders/trash/:id", requireSuperAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params["id"] ?? "0", 10);
+    if (!id) return res.status(400).json({ error: "Invalid id" });
+    const actor = ((req as unknown) as { admin: { username: string } }).admin.username;
+    const { rows } = await pool.query<{ id: number; order_id: string; name: string; phone: string }>(
+      `DELETE FROM orders WHERE id = $1 AND deleted_at IS NOT NULL RETURNING id, order_id, name, phone`, [id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: "Trashed order not found" });
+    await appendDeleteAudit([{
+      entityType: "order", entityId: id,
+      entityRef: `${rows[0]!.order_id} — ${rows[0]!.name} (${rows[0]!.phone}) [PERM_DELETE]`,
+      deletedBy: actor, deletedAt: new Date().toISOString(),
+    }]);
+    return res.json({ ok: true });
+  } catch { return res.status(500).json({ error: "Permanent delete failed" }); }
 });
 
 /* ─── Shiprocket ─── */

@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import nodemailer from "nodemailer";
-import { db, ordersTable } from "@workspace/db";
+import { db, pool, ordersTable } from "@workspace/db";
 import { sql, gte } from "drizzle-orm";
 
 const SMTP_HOST = process.env["SMTP_HOST"];
@@ -130,9 +130,24 @@ async function sendDailySummary() {
   }
 }
 
+async function autoCleanTrash() {
+  try {
+    const { rows } = await pool.query<{ id: number }>(
+      `DELETE FROM orders WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '30 days' RETURNING id`
+    );
+    if (rows.length > 0) console.log(`[TRASH] Auto-cleaned ${rows.length} orders older than 30 days`);
+  } catch (err) { console.error("[TRASH] Auto-clean failed:", err); }
+}
+
 export function startEmailCron() {
   cron.schedule("59 23 * * *", () => {
     void sendDailySummary();
   }, { timezone: "Asia/Kolkata" });
   console.log("[EMAIL] Daily report cron scheduled at 23:59 IST");
+
+  // Run at 2:00 AM IST every day — permanently delete trash older than 30 days
+  cron.schedule("0 2 * * *", () => {
+    void autoCleanTrash();
+  }, { timezone: "Asia/Kolkata" });
+  console.log("[TRASH] 30-day auto-clean cron scheduled at 02:00 IST");
 }
