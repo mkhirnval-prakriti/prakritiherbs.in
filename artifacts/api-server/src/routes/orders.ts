@@ -61,6 +61,9 @@ router.post("/orders", async (req, res) => {
       eventId:    body.eventId,
       phone,
       name,
+      city:       city ?? undefined,
+      state:      state ?? undefined,
+      pincode:    pincode ?? undefined,
       ipAddress:  (req.headers["x-forwarded-for"] as string | undefined)
                     ?.split(",")[0]?.trim() ?? req.socket.remoteAddress,
       userAgent:  body.userAgent ?? (req.headers["user-agent"] as string | undefined),

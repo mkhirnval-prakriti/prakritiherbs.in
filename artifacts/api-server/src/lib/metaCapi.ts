@@ -51,6 +51,15 @@ export interface CAPIEventParams {
   email?: string;
   name?: string;
 
+  /**
+   * Location fields — significantly improve Match Quality score.
+   * Already collected at order time; passed directly from orders.ts.
+   * city and state are hashed; pincode is hashed as zip code (zp).
+   */
+  city?: string | null;
+  state?: string | null;
+  pincode?: string | null;
+
   /** Browser signals forwarded from the client request */
   ipAddress?: string;
   userAgent?: string;
@@ -91,6 +100,11 @@ function buildPayload(params: CAPIEventParams, pixelId: string, token: string): 
     if (firstName) userData["fn"] = [sha256(firstName)];
     if (lastName)  userData["ln"] = [sha256(lastName)];
   }
+
+  // Location signals — each adds +1–3 points to Meta Match Quality score
+  if (params.city)    userData["ct"] = [sha256(params.city)];
+  if (params.state)   userData["st"] = [sha256(params.state)];
+  if (params.pincode) userData["zp"] = [sha256(params.pincode)];
 
   if (params.ipAddress) userData["client_ip_address"] = params.ipAddress;
   if (params.userAgent) userData["client_user_agent"] = params.userAgent;
