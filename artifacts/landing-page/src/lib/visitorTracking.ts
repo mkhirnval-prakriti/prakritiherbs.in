@@ -2,6 +2,44 @@
 
 export type VisitorSource = "Facebook" | "Instagram" | "WhatsApp" | "Direct";
 
+/* ─────────────────────────────────────────────────────────────────
+ * Agency Source Tracking  (?source=taj → "taj")
+ *
+ * Priority:
+ *  1. URL param ?source=  — ALWAYS wins; overwrites any stored value
+ *  2. localStorage "_pk_asrc"  — survives page navigation / refreshes
+ *  3. "" (empty)  — no agency attributed
+ *
+ * Call getAgencySource() anywhere on the frontend. It is safe to call
+ * multiple times — it reads once and caches within the session.
+ * ───────────────────────────────────────────────────────────────── */
+const AGENCY_SRC_KEY = "_pk_asrc";
+
+export function getAgencySource(): string {
+  if (typeof window === "undefined") return "";
+
+  // Priority 1: URL param is present → always overwrite stored value
+  const urlParam = new URLSearchParams(window.location.search).get("source");
+  if (urlParam && urlParam.trim()) {
+    const src = urlParam.trim().toLowerCase();
+    try { localStorage.setItem(AGENCY_SRC_KEY, src); } catch { /* private mode */ }
+    return src;
+  }
+
+  // Priority 2: Persisted from a previous page load that had ?source=
+  try {
+    const stored = localStorage.getItem(AGENCY_SRC_KEY);
+    if (stored) return stored;
+  } catch { /* private mode */ }
+
+  return "";
+}
+
+/** Call after a successful order submission to clear the agency attribution */
+export function clearAgencySource(): void {
+  try { localStorage.removeItem(AGENCY_SRC_KEY); } catch { /* ignore */ }
+}
+
 function detectSource(): VisitorSource {
   if (typeof window === "undefined") return "Direct";
   const params = new URLSearchParams(window.location.search);

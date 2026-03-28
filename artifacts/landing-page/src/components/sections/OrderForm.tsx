@@ -3,13 +3,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, ShieldCheck, Truck, Package, X, Loader2, MapPin, CheckCircle, AlertCircle } from "lucide-react";
 import { cleanMobile, sendLeadToCRM, DuplicateOrderError, hasOrderedToday } from "@/lib/crm";
 import { fireLead, fireInitiateCheckout, markPaymentInitiated, generateEventId, getCookie } from "@/lib/pixel";
-import { getVisitorSource, startVisitorPing } from "@/lib/visitorTracking";
+import { getVisitorSource, startVisitorPing, getAgencySource, clearAgencySource } from "@/lib/visitorTracking";
 
 /* ─── Types ─── */
 type LocationStatus = "idle" | "detecting" | "gps_ok" | "gps_denied" | "pin_ok" | "pin_err";
 
 /* ─── Helpers ─── */
-function captureAbandonedCart(name: string, phone: string, address: string, pincode: string, email?: string) {
+function captureAbandonedCart(name: string, phone: string, address: string, pincode: string, email?: string, source?: string) {
   const cleanPhone = phone.replace(/\D/g, "").slice(-10);
   if (cleanPhone.length < 10) return;
   fetch("/api/abandoned-cart", {
@@ -18,7 +18,8 @@ function captureAbandonedCart(name: string, phone: string, address: string, pinc
     body: JSON.stringify({
       name: name.trim(), phone: cleanPhone,
       email: email && email.includes("@") ? email.trim() : undefined,
-      address: address.trim() || null, pincode: pincode.trim() || null, source: "COD",
+      address: address.trim() || null, pincode: pincode.trim() || null,
+      source: source || "direct",
     }),
     keepalive: true,
   }).catch(() => {});
@@ -166,6 +167,14 @@ export function OrderForm() {
   const geoAttempted = useRef(false);
   const visitorSource = getVisitorSource();
 
+  /**
+   * Agency source — read from ?source= URL param first (highest priority),
+   * then fall back to localStorage (persisted from a previous page load).
+   * URL param ALWAYS overwrites any stored value so a returning customer
+   * clicking a new agency link gets the correct attribution.
+   */
+  const agencySource = getAgencySource();
+
   /* ─── GPS Auto-Detect on Page Load ─── */
   useEffect(() => {
     startVisitorPing();
@@ -263,7 +272,9 @@ export function OrderForm() {
         body: JSON.stringify({
           name: name.trim(), phone: mobile, address: address.trim(),
           pincode: pincode.trim(), city: city.trim() || undefined, state: state.trim() || undefined,
-          quantity: parseInt(quantity, 10), product: "KamaSutra Gold+", source: "COD",
+          quantity: parseInt(quantity, 10), product: "KamaSutra Gold+",
+          // Agency source from ?source= URL param (highest priority) → localStorage → "direct"
+          source: agencySource || "direct",
           email: email.trim() || undefined,
           visitorSource: visitorSource ?? "Direct",
           eventId: leadEventId,
@@ -273,7 +284,7 @@ export function OrderForm() {
         }),
       }).catch(() => {});
 
-      sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), "COD", city.trim() || undefined, state.trim() || undefined);
+      sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), agencySource || "COD", city.trim() || undefined, state.trim() || undefined);
 
       const msg = encodeURIComponent(
         `*New COD Order:*\n*Product:* KamaSutra Gold+\n*Name:* ${name}\n*Mobile:* ${mobile}\n*Address:* ${address}${city ? `, ${city}` : ""}${state ? `, ${state}` : ""}\n*Pincode:* ${pincode}\n*Qty:* ${quantity} bottle(s)`
@@ -281,6 +292,8 @@ export function OrderForm() {
       window.open(`https://wa.me/918968122246?text=${msg}`, "_blank");
 
       fireLead({ name: name.trim(), phone: mobile, eventId: leadEventId });
+      // Clear agency attribution so a re-order doesn't double-attribute
+      clearAgencySource();
       setLoading(false);
       setShowSuccess(true);
     } catch (err) {
@@ -417,7 +430,7 @@ export function OrderForm() {
                         onBlur={() => {
                           if (!abandonedFired.current && name.trim().length >= 2 && phone.replace(/\D/g, "").length >= 10) {
                             abandonedFired.current = true;
-                            captureAbandonedCart(name, phone, address, pincode, email);
+                            captureAbandonedCart(name, phone, address, pincode, email, agencySource || undefined);
                           }
                         }}
                         className={`${inputClass("phone")} pl-12`} placeholder="98765 43210" maxLength={10} />

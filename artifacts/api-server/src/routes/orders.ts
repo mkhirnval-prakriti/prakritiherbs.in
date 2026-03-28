@@ -26,7 +26,7 @@ router.post("/orders", async (req, res) => {
     city?: string;
     state?: string;
   };
-  const source = body.source ?? "COD";
+  const source = body.source?.trim().toLowerCase() || "direct";
   const visitorSource = body.visitorSource ?? "Direct";
   const city = typeof body.city === "string" ? body.city.trim() || null : null;
   const state = typeof body.state === "string" ? body.state.trim() || null : null;
