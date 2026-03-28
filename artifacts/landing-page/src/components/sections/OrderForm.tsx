@@ -4,6 +4,7 @@ import { CheckCircle2, ShieldCheck, Truck, Package, X, Loader2, MapPin, CheckCir
 import { cleanMobile, sendLeadToCRM, DuplicateOrderError, hasOrderedToday } from "@/lib/crm";
 import { fireLead, fireInitiateCheckout, markPaymentInitiated, generateEventId, getCookie } from "@/lib/pixel";
 import { getVisitorSource, startVisitorPing, getAgencySource, clearAgencySource, captureLandingUrl, getLandingPageUrl, clearLandingPageUrl } from "@/lib/visitorTracking";
+import { openWhatsApp } from "@/lib/whatsapp";
 
 /* ─── Types ─── */
 type LocationStatus = "idle" | "detecting" | "gps_ok" | "gps_denied" | "pin_ok" | "pin_err";
@@ -289,10 +290,8 @@ export function OrderForm() {
 
       sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), agencySource || "COD", city.trim() || undefined, state.trim() || undefined);
 
-      const msg = encodeURIComponent(
-        `*New COD Order:*\n*Product:* KamaSutra Gold+\n*Name:* ${name}\n*Mobile:* ${mobile}\n*Address:* ${address}${city ? `, ${city}` : ""}${state ? `, ${state}` : ""}\n*Pincode:* ${pincode}\n*Qty:* ${quantity} bottle(s)`
-      );
-      window.open(`https://api.whatsapp.com/send/?phone=918968122246&text=${msg}&type=phone_number&app_absent=0`, "_blank");
+      const msg = `*New COD Order:*\n*Product:* KamaSutra Gold+\n*Name:* ${name}\n*Mobile:* ${mobile}\n*Address:* ${address}${city ? `, ${city}` : ""}${state ? `, ${state}` : ""}\n*Pincode:* ${pincode}\n*Qty:* ${quantity} bottle(s)`;
+      openWhatsApp(msg);
 
       fireLead({ name: name.trim(), phone: mobile, eventId: leadEventId });
       // Clear agency attribution + landing URL after order — avoid carrying over to next session

@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
 import { Phone, MessageCircle } from "lucide-react";
+import { openWhatsApp } from "@/lib/whatsapp";
 
-const WA_EXPERT = `https://api.whatsapp.com/send/?phone=918968122246&text=${encodeURIComponent("Namaste, I want more information about Kamasutra Gold +")}&type=phone_number&app_absent=0`;
+const WA_GREETING = "Namaste, I want more information about Kamasutra Gold +";
 
 export function ExpertCTA() {
   return (
@@ -31,15 +32,14 @@ export function ExpertCTA() {
               <Phone className="w-5 h-5" />
               Call Now – +91 89681 22246
             </a>
-            <a
-              href={WA_EXPERT}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-[#25D366] text-white font-bold text-lg rounded-xl shadow-lg hover:bg-[#20bd5a] hover:scale-[1.03] active:scale-[0.97] transition-all"
+            <button
+              type="button"
+              onClick={() => openWhatsApp(WA_GREETING)}
+              className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-[#25D366] text-white font-bold text-lg rounded-xl shadow-lg hover:bg-[#20bd5a] hover:scale-[1.03] active:scale-[0.97] transition-all cursor-pointer"
             >
               <MessageCircle className="w-5 h-5" />
               WhatsApp Expert
-            </a>
+            </button>
           </div>
           <p className="text-sm text-muted-foreground mt-6">
             सुबह 9 बजे से रात 9 बजे तक उपलब्ध • 100% Confidential

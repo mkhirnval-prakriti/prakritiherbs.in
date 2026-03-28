@@ -7,6 +7,7 @@ import {
   getVisitorSource, startVisitorPing, getAgencySource,
   clearAgencySource, captureLandingUrl, getLandingPageUrl, clearLandingPageUrl,
 } from "@/lib/visitorTracking";
+import { openWhatsApp } from "@/lib/whatsapp";
 
 /* ─── Pack Options ─── */
 const PACKS = [
@@ -231,10 +232,8 @@ export function OrderModal({ open, onClose, bannerUrl }: { open: boolean; onClos
         city.trim() || undefined, state.trim() || undefined, pack.qty, pack.price);
 
       /* WhatsApp redirect with quantity + correct price */
-      const msg = encodeURIComponent(
-        `*New COD Order — KamaSutra Gold+*\n*Name:* ${name.trim()}\n*Mobile:* ${mobile}\n*Address:* ${address.trim()}${city ? `, ${city}` : ""}${state ? `, ${state}` : ""}\n*Pincode:* ${pincode}\n*Qty:* ${pack.label} (${pack.qty} bottle)\n*Amount:* ₹${pack.price} (COD)\n*Source:* ${agencySource || "direct"}`
-      );
-      window.open(`https://api.whatsapp.com/send/?phone=918968122246&text=${msg}&type=phone_number&app_absent=0`, "_blank");
+      const msg = `*New COD Order — KamaSutra Gold+*\n*Name:* ${name.trim()}\n*Mobile:* ${mobile}\n*Address:* ${address.trim()}${city ? `, ${city}` : ""}${state ? `, ${state}` : ""}\n*Pincode:* ${pincode}\n*Qty:* ${pack.label} (${pack.qty} bottle)\n*Amount:* ₹${pack.price} (COD)\n*Source:* ${agencySource || "direct"}`;
+      openWhatsApp(msg);
 
       fireLead({ phone: mobile, eventId: leadEventId, value: pack.price });
       clearAgencySource();

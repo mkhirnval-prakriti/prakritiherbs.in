@@ -1,4 +1,5 @@
 import { Phone, MessageCircle } from "lucide-react";
+import { openWhatsApp } from "@/lib/whatsapp";
 
 export function Footer() {
   return (
@@ -37,8 +38,8 @@ export function Footer() {
                 +91 89681 22276
               </a>
               <a
-                href="https://api.whatsapp.com/send/?phone=918968122246&type=phone_number&app_absent=0"
-                target="_blank"
+                href="#"
+                onClick={(e) => { e.preventDefault(); openWhatsApp("Namaste, I want more information about Kamasutra Gold +"); }}
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 hover:text-primary transition-colors"
               >
