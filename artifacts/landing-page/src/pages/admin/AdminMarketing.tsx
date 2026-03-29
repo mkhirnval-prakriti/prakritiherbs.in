@@ -260,6 +260,7 @@ function MarketingHub() {
 
   // System Health
   const [log, setLog] = useState<CapiLogEntry[]>([]);
+  const visibleLog = log.filter(e => e.agencyName !== "default");
   const [pending, setPending] = useState<PendingCapiEvent[]>([]);
   const [logLoading, setLogLoading] = useState(false);
   const [retrying, setRetrying] = useState<string | null>(null);
@@ -742,7 +743,7 @@ function MarketingHub() {
             <div className="flex items-center gap-2">
               <Clock className="w-3.5 h-3.5 text-gray-500" />
               <span className="text-sm font-semibold text-gray-700">CAPI Activity Log</span>
-              <span className="text-xs text-gray-400">— last {log.length} events</span>
+              <span className="text-xs text-gray-400">— last {visibleLog.length} events</span>
             </div>
             <div className="flex items-center gap-2">
               <button onClick={loadHealth} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100" title="Refresh log">
@@ -758,9 +759,9 @@ function MarketingHub() {
             </div>
           </div>
           <div className="divide-y divide-gray-100 max-h-56 overflow-y-auto">
-            {log.filter(e => e.agencyName !== "default").length === 0 ? (
+            {visibleLog.length === 0 ? (
               <div className="flex items-center justify-center h-20 text-gray-400 text-xs">No activity yet — use "Test Connection" to generate entries</div>
-            ) : log.filter(e => e.agencyName !== "default").map((entry) => (
+            ) : visibleLog.map((entry) => (
               <div key={entry.id} className="flex items-start gap-3 px-4 py-2.5">
                 <div className="mt-0.5 flex-shrink-0">
                   {entry.status === "success"
