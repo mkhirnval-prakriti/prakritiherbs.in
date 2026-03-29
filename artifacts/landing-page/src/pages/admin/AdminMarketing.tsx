@@ -758,9 +758,9 @@ function MarketingHub() {
             </div>
           </div>
           <div className="divide-y divide-gray-100 max-h-56 overflow-y-auto">
-            {log.length === 0 ? (
+            {log.filter(e => e.agencyName !== "default").length === 0 ? (
               <div className="flex items-center justify-center h-20 text-gray-400 text-xs">No activity yet — use "Test Connection" to generate entries</div>
-            ) : log.map((entry) => (
+            ) : log.filter(e => e.agencyName !== "default").map((entry) => (
               <div key={entry.id} className="flex items-start gap-3 px-4 py-2.5">
                 <div className="mt-0.5 flex-shrink-0">
                   {entry.status === "success"
