@@ -823,17 +823,6 @@ function MarketingHub() {
             </div>
           </div>
         )}
-
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800 space-y-1">
-          <p className="font-semibold">How Multi-Agency CAPI works</p>
-          <ul className="list-disc list-inside space-y-0.5 opacity-80">
-            <li><strong>Main pixel always fires</strong> — regardless of source, every order reaches your primary Meta pixel.</li>
-            <li><strong>Agency pixel fires</strong> only when URL has <code>?source=sartaj</code> (or matching source tag).</li>
-            <li><strong>Test Connection</strong> sends a test event to Facebook and shows ✅ or ❌ with the exact error.</li>
-            <li><strong>Emergency Reset</strong> pauses all agency pixels instantly — use if site becomes slow.</li>
-            <li><strong>CAPI tokens</strong> are masked for staff — only last 4 chars visible.</li>
-          </ul>
-        </div>
       </div>
     </div>
   );
