@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { fetchSettings, saveSettings, fetchStaff, createStaff, deleteStaff, isSuperAdmin, changePassword, setAdminToken, type StaffUser } from "@/lib/adminApi";
-import { Save, Truck, MessageSquare, CreditCard, Building2, Mail, Clock, ExternalLink, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Zap, Users, UserPlus, Trash2, ShieldCheck, Eye, EyeOff, Lock, KeyRound, Loader2, Globe, Phone } from "lucide-react";
+import { fetchSettings, saveSettings, fetchStaff, createStaff, deleteStaff, isSuperAdmin, changePassword, setAdminToken, testEmailReport, type StaffUser } from "@/lib/adminApi";
+import { Save, Truck, MessageSquare, CreditCard, Building2, Mail, Clock, ExternalLink, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Zap, Users, UserPlus, Trash2, ShieldCheck, Eye, EyeOff, Lock, KeyRound, Loader2, Globe, Phone, Send } from "lucide-react";
 
 const G = "#1B5E20";
 
@@ -235,6 +235,82 @@ function StaffManagement() {
           <UserPlus className="w-4 h-4" /> Add Staff User
         </button>
       )}
+    </div>
+  );
+}
+
+function EmailReportSection() {
+  const [testTo, setTestTo] = useState("mkhirnval@gmail.com");
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  async function handleTest() {
+    if (!testTo.trim()) return;
+    setSending(true);
+    setResult(null);
+    try {
+      const r = await testEmailReport(testTo.trim());
+      setResult(r);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2.5">
+          <Clock className="w-4 h-4 text-green-700 flex-shrink-0" />
+          <div>
+            <p className="text-xs font-semibold text-green-800">Scheduled Time</p>
+            <p className="text-xs text-green-700">11:59 PM IST (daily)</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5">
+          <Mail className="w-4 h-4 text-blue-700 flex-shrink-0" />
+          <div>
+            <p className="text-xs font-semibold text-blue-800">Report Receiver</p>
+            <p className="text-xs text-blue-700">contact@prakritiherbs.in</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-gray-50 rounded-lg border border-gray-200 p-3 space-y-2">
+        <p className="text-xs font-semibold text-gray-700">Report includes:</p>
+        <ul className="text-xs text-gray-600 space-y-1 list-none">
+          {["Total orders with status breakdown", "Source-wise order breakdown (Taj, Sartaj, Direct, etc.)", "Complete order table with time, name, mobile, address", "Estimated revenue (pack-wise pricing)"].map((item) => (
+            <li key={item} className="flex items-center gap-1.5"><CheckCircle className="w-3 h-3 text-green-500 flex-shrink-0" />{item}</li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-gray-700">Send Test Email</p>
+        <div className="flex gap-2">
+          <input
+            type="email"
+            value={testTo}
+            onChange={(e) => setTestTo(e.target.value)}
+            placeholder="recipient@email.com"
+            className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+          <button
+            onClick={handleTest}
+            disabled={sending}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60 transition-colors"
+            style={{ background: "#2E7D32" }}
+          >
+            {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+            {sending ? "Sending..." : "Send Test"}
+          </button>
+        </div>
+        {result && (
+          <div className={`flex items-start gap-2 text-xs rounded-lg p-2.5 ${result.ok ? "bg-green-50 text-green-800 border border-green-200" : "bg-red-50 text-red-800 border border-red-200"}`}>
+            {result.ok ? <CheckCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />}
+            {result.message}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -493,20 +569,7 @@ export function AdminSettings() {
       </Section>
 
       <Section title="Daily Email Report" icon={<Mail className="w-4 h-4" />} defaultOpen={false}>
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-sm text-gray-700">
-            <Clock className="w-4 h-4 text-orange-500" />
-            <span>Sent at <strong>11:59 PM IST</strong> every day</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm text-gray-700">
-            <Mail className="w-4 h-4 text-green-600" />
-            <span>Default destination: <strong>contact@prakritiherbs.in</strong></span>
-          </div>
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800">
-            To enable email delivery, set these environment variables in your deployment:
-            <code className="block mt-1 font-mono bg-yellow-100 px-2 py-1 rounded">SMTP_HOST · SMTP_PORT · SMTP_USER · SMTP_PASS</code>
-          </div>
-        </div>
+        <EmailReportSection />
       </Section>
 
       {superAdmin && (

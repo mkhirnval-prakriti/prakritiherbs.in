@@ -671,3 +671,9 @@ export async function deleteStaff(id: string): Promise<void> {
   const res = await authFetch(`/admin/staff/${id}`, { method: "DELETE" });
   if (!res.ok) { const d = await res.json() as { error?: string }; throw new Error(d.error ?? "Delete failed"); }
 }
+
+export async function testEmailReport(to: string): Promise<{ ok: boolean; message: string }> {
+  const res = await authFetch("/admin/email/test", { method: "POST", body: JSON.stringify({ to }) });
+  const data = await res.json() as { ok?: boolean; message?: string };
+  return { ok: !!data.ok, message: data.message ?? (res.ok ? "Sent" : "Failed") };
+}

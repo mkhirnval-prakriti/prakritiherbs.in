@@ -4,6 +4,7 @@ import { eq, desc, like, and, gte, lte, sql, or, inArray, isNull, isNotNull } fr
 import { requireAdmin, requireSuperAdmin, signAdminToken, type AdminRole } from "../middlewares/requireAdmin";
 import { getSettings, saveSettingsBatch, getSetting } from "./settings";
 import crypto from "crypto";
+import { sendDailySummary } from "../lib/emailCron";
 
 const router: IRouter = Router();
 
@@ -831,6 +832,15 @@ router.post("/admin/abandoned-carts/bulk-delete", requireSuperAdmin, async (req,
     await appendDeleteAudit(rows.map((c) => ({ entityType: "abandoned_cart" as const, entityId: c.id, entityRef: `${c.name} (${c.phone})`, deletedBy: actor, deletedAt: now })));
     return res.json({ deleted: rows.length });
   } catch { return res.status(500).json({ error: "Bulk delete failed" }); }
+});
+
+// ── Test / Manual Email Trigger ──────────────────────────────────────────────
+router.post("/admin/email/test", requireAdmin, async (req, res) => {
+  const { to } = req.body as { to?: string };
+  const recipient = (to ?? "").trim() || "mkhirnval@gmail.com";
+  const result = await sendDailySummary(recipient);
+  if (result.success) return res.json({ ok: true, message: result.message });
+  return res.status(500).json({ ok: false, message: result.message });
 });
 
 export default router;

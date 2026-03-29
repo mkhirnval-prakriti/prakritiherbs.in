@@ -32,6 +32,10 @@ ADMIN_USERNAME = "prakriti_admin"
 ADMIN_PASSWORD = "Prakriti@2026!"
 JWT_SECRET = "pk_prakritiherbs_jwt_secret_2026_xK9mN3pQ"
 CRM_API_URL = "https://api.prakritiherbs.com/api/Indstore"
+SMTP_HOST = "smtp.hostinger.com"
+SMTP_PORT = "465"
+SMTP_USER = "contact@prakritiherbs.in"
+REPORT_EMAIL = "contact@prakritiherbs.in"
 
 [nix]
 channel = "stable-25_05"
