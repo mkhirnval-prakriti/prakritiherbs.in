@@ -7,6 +7,10 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+// Trust Replit / reverse-proxy headers so req.ip returns the real client IP
+// (including IPv6 addresses forwarded by the proxy layer)
+app.set("trust proxy", true);
+
 app.use(compression({ level: 6, threshold: 1024 }));
 
 app.use(

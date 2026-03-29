@@ -1,8 +1,36 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request } from "express";
 import { db, ordersTable } from "@workspace/db";
 import { CreateOrderBody } from "@workspace/api-zod";
 import { nanoid } from "nanoid";
 import { sendCapiToAllAgencies } from "../lib/metaCapi.js";
+
+/**
+ * Resolve the real client IP from the request, preferring IPv6.
+ *
+ * Priority order:
+ *  1. CF-Connecting-IP (Cloudflare)
+ *  2. X-Real-IP (nginx / most proxies)
+ *  3. First entry in X-Forwarded-For (leftmost = original client)
+ *  4. req.ip (Express with trust proxy enabled)
+ *  5. socket.remoteAddress fallback
+ *
+ * IPv4-mapped IPv6 addresses (::ffff:x.x.x.x) are preserved as-is —
+ * Facebook CAPI accepts both formats; stripping the prefix loses info.
+ */
+function resolveClientIp(req: Request): string | undefined {
+  const candidates = [
+    req.headers["cf-connecting-ip"],
+    req.headers["x-real-ip"],
+    (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim(),
+    req.ip,
+    req.socket?.remoteAddress,
+  ];
+  for (const c of candidates) {
+    const ip = (Array.isArray(c) ? c[0] : c)?.trim();
+    if (ip && ip !== "::1" && ip !== "127.0.0.1") return ip;
+  }
+  return undefined;
+}
 
 const router: IRouter = Router();
 
@@ -68,8 +96,7 @@ router.post("/orders", async (req, res) => {
       city:       city ?? undefined,
       state:      state ?? undefined,
       pincode:    pincode ?? undefined,
-      ipAddress:  (req.headers["x-forwarded-for"] as string | undefined)
-                    ?.split(",")[0]?.trim() ?? req.socket.remoteAddress,
+      ipAddress:  resolveClientIp(req),
       userAgent:  body.userAgent ?? (req.headers["user-agent"] as string | undefined),
       fbp:        body.fbp,
       fbc:        body.fbc,
