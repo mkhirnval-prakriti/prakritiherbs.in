@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, CheckCircle2, Loader2, MapPin, CheckCircle, AlertCircle } from "lucide-react";
 import { cleanMobile, sendLeadToCRM, DuplicateOrderError, hasOrderedToday } from "@/lib/crm";
-import { fireLead, generateEventId, getCookie } from "@/lib/pixel";
+import { fireLead, generateEventId, getCookie, setAdvancedMatching } from "@/lib/pixel";
 import {
   getVisitorSource, startVisitorPing, getAgencySource,
   clearAgencySource, captureLandingUrl, getLandingPageUrl, clearLandingPageUrl,
@@ -235,6 +235,7 @@ export function OrderModal({ open, onClose, bannerUrl }: { open: boolean; onClos
       const msg = `*New COD Order — KamaSutra Gold+*\n*Name:* ${name.trim()}\n*Mobile:* ${mobile}\n*Address:* ${address.trim()}${city ? `, ${city}` : ""}${state ? `, ${state}` : ""}\n*Pincode:* ${pincode}\n*Qty:* ${pack.label} (${pack.qty} bottle)\n*Amount:* ₹${pack.price} (COD)\n*Source:* ${agencySource || "direct"}`;
       openWhatsApp(msg);
 
+      void setAdvancedMatching({ phone: mobile, firstName: name.trim() });
       fireLead({ phone: mobile, eventId: leadEventId, value: pack.price });
       clearAgencySource();
       clearLandingPageUrl();

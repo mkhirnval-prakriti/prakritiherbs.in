@@ -51,6 +51,42 @@ function fbq(event: string, name: string, params?: Record<string, unknown>): voi
   }
 }
 
+/** SHA-256 hash a string — Meta requires lowercase hex for Advanced Matching */
+async function sha256(str: string): Promise<string> {
+  try {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str.trim().toLowerCase()));
+    return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  } catch { return ""; }
+}
+
+/**
+ * Call fbq('init') again with hashed user data so Meta can match events
+ * to real Facebook profiles. Improves Event Match Quality score.
+ * Safe to call after the initial pixel init in index.html.
+ */
+export async function setAdvancedMatching(params: { phone?: string; firstName?: string }): Promise<void> {
+  try {
+    const fn = (window as unknown as { fbq?: (...a: unknown[]) => void }).fbq;
+    if (typeof fn !== "function") return;
+
+    const matchParams: Record<string, string> = {};
+    if (params.phone) {
+      const digits = params.phone.replace(/\D/g, "");
+      const normalized = digits.length === 10 ? `91${digits}` : digits;
+      const hashed = await sha256(normalized);
+      if (hashed) matchParams["ph"] = hashed;
+    }
+    if (params.firstName) {
+      const hashed = await sha256(params.firstName.split(" ")[0] ?? params.firstName);
+      if (hashed) matchParams["fn"] = hashed;
+    }
+
+    if (Object.keys(matchParams).length > 0) {
+      fn("init", PIXEL_ID, matchParams);
+    }
+  } catch { /* never break order flow */ }
+}
+
 /** Fire on every route change inside the SPA */
 export function firePageView(): void {
   fbq("track", "PageView");
