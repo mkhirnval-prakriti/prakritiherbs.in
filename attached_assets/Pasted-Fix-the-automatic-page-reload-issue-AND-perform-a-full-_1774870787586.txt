@@ -1,0 +1,119 @@
+Fix the automatic page reload issue AND perform a full system verification of all implemented features.
+
+========================
+PRIMARY ISSUE
+=============
+
+The website loads correctly but refreshes automatically after 2–3 seconds.
+
+========================
+TASK 1: FIX AUTO RELOAD
+=======================
+
+1. Check for unintended reload triggers:
+
+   * location.reload()
+   * window.location.href redirects
+   * navigation loops
+
+2. Inspect React components:
+
+   * Check useEffect hooks without proper dependency arrays
+   * Prevent infinite re-render loops
+
+3. Check tracking scripts:
+
+   * getAgencySource()
+   * Pixel initialization
+   * Lead tracking scripts (call/whatsapp)
+
+4. Check for runtime errors:
+
+   * Console errors
+   * Failed API calls causing reload
+
+5. Check service worker / cache:
+
+   * Disable or clear if causing reload
+
+Ensure:
+
+* Page loads once and remains stable
+* No automatic refresh happens
+
+========================
+TASK 2: FULL SYSTEM VERIFICATION (VERY IMPORTANT)
+=================================================
+
+Review EVERYTHING that was implemented earlier and verify it is working correctly:
+
+1. Orders system:
+
+   * Order submit works
+   * event_id is generated and saved
+
+2. Lead tracking:
+
+   * Call click tracking
+   * WhatsApp click tracking
+   * Data saved in DB
+
+3. Admin panel:
+
+   * Orders page loads
+   * Lead tracking page loads
+   * Filters work properly
+
+4. Excel export:
+
+   * File downloads correctly
+   * Data format is correct
+
+5. Pixel & CAPI:
+
+   * Events firing correctly
+   * No duplication issues
+
+6. API endpoints:
+
+   * All endpoints respond correctly
+   * No errors in logs
+
+========================
+TASK 3: FIX ANY ISSUES FOUND
+============================
+
+* If anything is broken or partially working:
+  → Fix it completely
+* Do NOT leave any incomplete implementation
+
+========================
+CRITICAL RULES
+==============
+
+* Do NOT break existing working features
+* Do NOT remove any functional system (orders, tracking, pixel, etc.)
+* Only fix issues and stabilize system
+
+========================
+FINAL OUTPUT REQUIRED
+=====================
+
+Provide:
+
+1. Root cause of auto reload
+2. What was fixed (file names + changes)
+3. Confirmation that:
+   ✔ No auto reload
+   ✔ All systems working properly
+
+========================
+GOAL
+====
+
+Make the entire system:
+
+* Stable
+* Error-free
+* Fully functional
+* Production-ready
