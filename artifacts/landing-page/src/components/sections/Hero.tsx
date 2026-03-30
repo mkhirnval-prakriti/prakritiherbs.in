@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { CheckCircle, ShieldCheck, MessageCircle, ArrowRight, AlertCircle } from "lucide-react";
 import { openWhatsApp } from "@/lib/whatsapp";
+import { trackWhatsApp } from "@/lib/leadTracking";
 
 const badges = [
   "✔ 100% Ayurvedic",
@@ -76,7 +77,7 @@ export function Hero() {
 
               <button
                 type="button"
-                onClick={() => openWhatsApp(WA_GREETING)}
+                onClick={() => { trackWhatsApp(); openWhatsApp(WA_GREETING); }}
                 className="flex items-center justify-center gap-2 px-8 py-4 bg-[#25D366] text-white font-bold rounded-xl text-lg shadow-xl hover:bg-[#20bd5a] hover:scale-[1.03] active:scale-[0.97] transition-all cursor-pointer"
               >
                 <MessageCircle className="w-5 h-5" />

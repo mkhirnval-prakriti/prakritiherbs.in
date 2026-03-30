@@ -1,6 +1,7 @@
 import { Phone, MessageCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import { openWhatsApp } from "@/lib/whatsapp";
+import { trackCall, trackWhatsApp } from "@/lib/leadTracking";
 
 const WA_GREETING = "Namaste, I want more information about Kamasutra Gold +";
 
@@ -9,7 +10,7 @@ export function FloatingContact() {
     <>
       <motion.button
         type="button"
-        onClick={() => openWhatsApp(WA_GREETING)}
+        onClick={() => { trackWhatsApp(); openWhatsApp(WA_GREETING); }}
         initial={{ opacity: 0, x: -30 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ delay: 1.2, duration: 0.4 }}
@@ -24,6 +25,7 @@ export function FloatingContact() {
 
       <motion.a
         href="tel:8968122246"
+        onClick={() => trackCall()}
         initial={{ opacity: 0, x: 30 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ delay: 1.2, duration: 0.4 }}

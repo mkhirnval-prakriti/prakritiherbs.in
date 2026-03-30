@@ -11,6 +11,7 @@ import liveRouter from "./live";
 import authRouter from "./auth";
 import agenciesRouter from "./agencies";
 import exportsRouter from "./exports";
+import leadTrackingRouter from "./leadTracking";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(settingsRouter);
 router.use(paymentsRouter);
 router.use(agenciesRouter);
 router.use(exportsRouter);
+router.use(leadTrackingRouter);
 
 export default router;

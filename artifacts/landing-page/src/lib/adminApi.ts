@@ -694,6 +694,74 @@ export interface EventTrackingSummary {
   duplicate: number;
 }
 
+export interface LeadEntry {
+  id: number;
+  event_id: string | null;
+  type: string;
+  source: string;
+  customer_phone: string | null;
+  call_status: string;
+  call_duration: number | null;
+  page_url: string | null;
+  landing_page: string | null;
+  campaign_name: string | null;
+  adset_name: string | null;
+  ad_name: string | null;
+  device_type: string | null;
+  browser: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  referrer: string | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  created_at: string;
+}
+export interface LeadFilters {
+  type?: string;
+  status?: string;
+  source?: string;
+  phone?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  limit?: number;
+}
+
+export async function fetchLeadTracking(
+  filters?: LeadFilters
+): Promise<{ data: LeadEntry[]; total: number; page: number; limit: number }> {
+  const params = new URLSearchParams();
+  if (filters?.type) params.set("type", filters.type);
+  if (filters?.status) params.set("status", filters.status);
+  if (filters?.source) params.set("source", filters.source);
+  if (filters?.phone) params.set("phone", filters.phone);
+  if (filters?.dateFrom) params.set("dateFrom", filters.dateFrom);
+  if (filters?.dateTo) params.set("dateTo", filters.dateTo);
+  if (filters?.page) params.set("page", String(filters.page));
+  if (filters?.limit) params.set("limit", String(filters.limit));
+  const qs = params.toString();
+  const res = await authFetch(`/admin/lead-tracking${qs ? `?${qs}` : ""}`);
+  if (!res.ok) throw new Error("Failed to fetch lead tracking");
+  return res.json() as Promise<{ data: LeadEntry[]; total: number; page: number; limit: number }>;
+}
+
+export async function exportLeadTracking(
+  filters?: LeadFilters
+): Promise<{ data: LeadEntry[] }> {
+  const params = new URLSearchParams();
+  if (filters?.type) params.set("type", filters.type);
+  if (filters?.status) params.set("status", filters.status);
+  if (filters?.source) params.set("source", filters.source);
+  if (filters?.phone) params.set("phone", filters.phone);
+  if (filters?.dateFrom) params.set("dateFrom", filters.dateFrom);
+  if (filters?.dateTo) params.set("dateTo", filters.dateTo);
+  const qs = params.toString();
+  const res = await authFetch(`/admin/lead-tracking/export${qs ? `?${qs}` : ""}`);
+  if (!res.ok) throw new Error("Export failed");
+  return res.json() as Promise<{ data: LeadEntry[] }>;
+}
+
 export async function fetchEventTracking(filters?: {
   source?: string;
   dateFrom?: string;

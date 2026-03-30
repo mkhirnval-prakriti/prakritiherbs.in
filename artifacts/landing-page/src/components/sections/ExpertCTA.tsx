@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Phone, MessageCircle } from "lucide-react";
 import { openWhatsApp } from "@/lib/whatsapp";
+import { trackCall, trackWhatsApp } from "@/lib/leadTracking";
 
 const WA_GREETING = "Namaste, I want more information about Kamasutra Gold +";
 
@@ -27,6 +28,7 @@ export function ExpertCTA() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
               href="tel:+918968122246"
+              onClick={() => trackCall()}
               className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-secondary text-secondary-foreground font-bold text-lg rounded-xl shadow-lg hover:scale-[1.03] active:scale-[0.97] transition-all"
             >
               <Phone className="w-5 h-5" />
@@ -34,7 +36,7 @@ export function ExpertCTA() {
             </a>
             <button
               type="button"
-              onClick={() => openWhatsApp(WA_GREETING)}
+              onClick={() => { trackWhatsApp(); openWhatsApp(WA_GREETING); }}
               className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-[#25D366] text-white font-bold text-lg rounded-xl shadow-lg hover:bg-[#20bd5a] hover:scale-[1.03] active:scale-[0.97] transition-all cursor-pointer"
             >
               <MessageCircle className="w-5 h-5" />

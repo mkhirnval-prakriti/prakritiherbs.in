@@ -23,3 +23,4 @@ export * from "./pageviews";
 export * from "./abandoned-carts";
 export * from "./reviews";
 export * from "./app-settings";
+export * from "./lead-tracking";

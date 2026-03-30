@@ -1,0 +1,174 @@
+Create a complete Lead Tracking + Full Data Export System for Call and WhatsApp tracking with detailed Excel reporting.
+
+========================
+OBJECTIVE
+=========
+
+Track every user interaction (Call clicks, WhatsApp clicks, missed calls, answered calls) and store FULL RAW DATA.
+Admin panel will show limited fields, but Excel export must contain COMPLETE detailed data.
+
+========================
+FRONTEND TRACKING
+=================
+
+1. On "Call Now" click:
+
+   * Generate eventId
+   * Capture:
+
+     * source
+     * page_url
+     * user_agent
+     * timestamp
+   * Fire Meta Pixel:
+     fbq('track', 'Contact', { eventID: eventId, channel: 'call' })
+   * Send API request to /api/lead-click
+
+2. On "WhatsApp Now" click:
+
+   * Generate eventId
+   * Capture:
+
+     * source
+     * page_url
+     * user_agent
+     * timestamp
+   * Modify link:
+     https://wa.me/91XXXXXXXXXX?text=Hi Source:{source}_{eventId}
+   * Fire Pixel
+   * Send API request
+
+========================
+CALL TRACKING (BACKEND)
+=======================
+
+Integrate call tracking API (Exotel/Twilio):
+
+Capture:
+
+* customer_phone
+* call_status (missed / answered)
+* call_duration
+* call_time
+
+========================
+DATABASE STRUCTURE
+==================
+
+Table: lead_tracking
+
+Fields (FULL DATA STORAGE):
+
+* id
+* event_id
+* type (call / whatsapp)
+* source (TAJ / FB / Direct)
+* customer_phone
+* call_status (clicked / missed / answered)
+* call_duration
+* page_url
+* landing_page
+* campaign_name (if available)
+* adset_name (if available)
+* ad_name (if available)
+* device_type
+* browser
+* ip_address
+* user_agent
+* referrer
+* city
+* state
+* country
+* created_at
+
+========================
+ADMIN PANEL (LIMITED VIEW)
+==========================
+
+Page: /admin/lead-tracking
+
+Show ONLY:
+
+* Date
+* Type (Call / WhatsApp)
+* Phone
+* Source
+* Status
+* Action (Call Back)
+
+Filters:
+
+* Date
+* Type
+* Status
+* Source
+* Phone
+
+========================
+EXCEL EXPORT (FULL DATA)
+========================
+
+1. Button: "Download Excel"
+
+2. API: /api/lead-tracking/export
+
+3. Apply filters before export
+
+4. Excel must include ALL fields:
+
+Columns:
+
+DATE (YYYY-MM-DD HH:MM:SS +0530)
+TYPE
+STATUS
+MOBILE
+SOURCE
+EVENT_ID
+CALL_DURATION
+PAGE_URL
+LANDING_PAGE
+CAMPAIGN_NAME
+ADSET_NAME
+AD_NAME
+DEVICE_TYPE
+BROWSER
+IP_ADDRESS
+REFERRER
+CITY
+STATE
+COUNTRY
+USER_AGENT
+
+5. Data Cleaning:
+
+* Remove duplicates (event_id + phone)
+* Clean phone:
+
+  * Remove +91 / 0
+  * Keep valid 10 digit only
+
+6. Extra Sheets:
+
+Sheet 1: All Data
+Sheet 2: Missed Calls Only
+Sheet 3: WhatsApp Leads Only
+
+========================
+ADVANCED FEATURES
+=================
+
+* Match leads with orders (phone / event_id)
+* Highlight:
+
+  * Missed calls → RED
+  * WhatsApp → GREEN
+* Add "Call Back" quick action
+
+========================
+GOAL
+====
+
+* Capture complete lead data
+* Never lose any lead
+* Provide full detailed Excel for analysis
+* Separate clean UI + full backend data system
