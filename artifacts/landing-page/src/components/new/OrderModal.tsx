@@ -225,8 +225,6 @@ export function OrderModal({ open, onClose, bannerUrl }: { open: boolean; onClos
           fbc: getCookie("_fbc"),
           userAgent: navigator.userAgent,
           amount: pack.price,
-          website: "PH_IN",
-          domain: window.location.hostname,
         }),
       }).catch(() => {});
 

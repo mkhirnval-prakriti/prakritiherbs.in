@@ -41,8 +41,6 @@ export function trackCall(): void {
         deviceType: detectDevice(ua),
         browser: detectBrowser(ua),
         userAgent: ua,
-        website: "PH_IN",
-        domain: window.location.hostname,
       }),
     });
   } catch {
@@ -72,8 +70,6 @@ export function trackWhatsApp(): void {
         deviceType: detectDevice(ua),
         browser: detectBrowser(ua),
         userAgent: ua,
-        website: "PH_IN",
-        domain: window.location.hostname,
       }),
     });
   } catch {
