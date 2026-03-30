@@ -108,15 +108,48 @@ router.delete("/admin/staff/:id", requireSuperAdmin, async (req, res) => {
   } catch { res.status(500).json({ error: "Failed to delete staff user" }); }
 });
 
+/* ─── Orders: distinct sources list ─── */
+router.get("/admin/orders/distinct-sources", requireAdmin, async (req, res) => {
+  try {
+    const rows = await pool.query<{ source: string }>(
+      `SELECT DISTINCT source FROM orders WHERE deleted_at IS NULL AND source IS NOT NULL ORDER BY source`,
+    );
+    res.json({ sources: rows.rows.map((r) => r.source) });
+  } catch (err) {
+    req.log.error({ err }, "Failed to fetch sources");
+    res.status(500).json({ error: "Failed" });
+  }
+});
+
+/* ─── Orders: bulk cleanup (soft-delete orders older than N days) ─── */
+router.delete("/admin/orders/cleanup", requireAdmin, async (req, res) => {
+  const { days = "90", confirm } = req.query as Record<string, string>;
+  if (confirm !== "true") { res.status(400).json({ error: "Pass confirm=true to proceed" }); return; }
+  const daysNum = Math.max(1, parseInt(days, 10) || 90);
+  try {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - daysNum);
+    const result = await pool.query<{ id: number }>(
+      `UPDATE orders SET deleted_at = NOW() WHERE deleted_at IS NULL AND created_at < $1 RETURNING id`,
+      [cutoff],
+    );
+    res.json({ deleted: result.rowCount ?? 0, cutoffDate: cutoff.toISOString() });
+  } catch (err) {
+    req.log.error({ err }, "Orders cleanup failed");
+    res.status(500).json({ error: "Cleanup failed" });
+  }
+});
+
 /* ─── Orders ─── */
 router.get("/admin/orders", requireAdmin, async (req, res) => {
   try {
-    const { search, status, dateFrom, dateTo, website, page = "1", limit = "50" } = req.query as Record<string, string>;
+    const { search, status, dateFrom, dateTo, website, source, page = "1", limit = "50" } = req.query as Record<string, string>;
     // Always exclude soft-deleted (trashed) orders
     const conditions = [isNull(ordersTable.deletedAt)];
     if (search) conditions.push(or(like(ordersTable.name, `%${search}%`), like(ordersTable.phone, `%${search}%`), like(ordersTable.address, `%${search}%`)));
     if (status && status !== "all") conditions.push(eq(ordersTable.status, status));
     if (website && website !== "all") conditions.push(eq(ordersTable.website, website.toUpperCase()));
+    if (source && source !== "all") conditions.push(eq(ordersTable.source, source.toLowerCase()));
     if (dateFrom) conditions.push(gte(ordersTable.createdAt, new Date(dateFrom)));
     if (dateTo) { const end = new Date(dateTo); end.setHours(23, 59, 59, 999); conditions.push(lte(ordersTable.createdAt, end)); }
 

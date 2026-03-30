@@ -1,18 +1,20 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import * as XLSX from "xlsx";
 import {
   fetchReviews, addReview, updateReview, deleteReview,
   fetchAgencies, saveAgency, toggleAgency, deleteAgency,
   testAgencyConnection, pauseAllAgencies,
   fetchCapiLog, clearCapiLog, fetchPendingCapi, retryCapi, dismissPendingCapi,
   downloadAgencyCSV, downloadAgencyExcel, fetchAgencyStats, resetStatsDate, clearStatsResetDate,
-  type Review, type AgencyProfile, type CapiLogEntry, type PendingCapiEvent, type AgencyOrderStat,
+  fetchOrders, fetchDistinctSources, cleanupOldOrders, deleteOrder,
+  type Review, type AgencyProfile, type CapiLogEntry, type PendingCapiEvent, type AgencyOrderStat, type Order,
 } from "@/lib/adminApi";
 import {
   Star, Plus, RefreshCw, CheckCircle, XCircle, Edit3, Trash2, X,
   Building2, Eye, EyeOff, ToggleLeft, ToggleRight, AlertCircle, Zap, Globe,
   Copy, Check, Wifi, WifiOff, ShieldAlert, ShieldCheck, RotateCcw,
   Activity, Clock, AlertTriangle, Trash, Download, FileSpreadsheet,
-  Package, TrendingUp, BarChart2,
+  Package, TrendingUp, BarChart2, Filter, ChevronDown, BarChart3,
 } from "lucide-react";
 
 const G = "#1B5E20";
@@ -996,22 +998,463 @@ function ReviewsTab() {
 }
 
 /* ──────────────────────────────────────────────
+   Order-Source Analysis Tab
+────────────────────────────────────────────── */
+type TimePreset = "30min" | "1hr" | "today" | "yesterday" | "custom";
+
+function getPresetDates(preset: TimePreset): { from: Date; to: Date } {
+  const now = new Date();
+  const to = new Date(now);
+  switch (preset) {
+    case "30min": return { from: new Date(now.getTime() - 30 * 60 * 1000), to };
+    case "1hr":   return { from: new Date(now.getTime() - 60 * 60 * 1000), to };
+    case "today": {
+      const from = new Date(now); from.setHours(0, 0, 0, 0);
+      return { from, to };
+    }
+    case "yesterday": {
+      const from = new Date(now); from.setDate(from.getDate() - 1); from.setHours(0, 0, 0, 0);
+      const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1); yesterday.setHours(23, 59, 59, 999);
+      return { from, to: yesterday };
+    }
+    default: return { from: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000), to };
+  }
+}
+
+function fmtDateTime(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function sourceLabel(src: string): string {
+  const lower = (src || "").toLowerCase().trim();
+  if (!lower || lower === "direct") return "Direct (Main)";
+  if (lower === "organic") return "Organic";
+  return src.charAt(0).toUpperCase() + src.slice(1);
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  New: "bg-blue-100 text-blue-700",
+  Confirmed: "bg-green-100 text-green-700",
+  Shipped: "bg-purple-100 text-purple-700",
+  Delivered: "bg-emerald-100 text-emerald-700",
+  Cancelled: "bg-red-100 text-red-700",
+};
+
+function OrderSourceAnalysis() {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [sources, setSources] = useState<string[]>([]);
+
+  // Filters
+  const [preset, setPreset] = useState<TimePreset>("today");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo]     = useState("");
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
+
+  // Bulk select
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+
+  // Cleanup modal
+  const [showCleanup, setShowCleanup] = useState(false);
+  const [cleanupDays, setCleanupDays] = useState(90);
+  const [cleaning, setCleaning] = useState(false);
+  const [cleanupResult, setCleanupResult] = useState<string | null>(null);
+
+  // Exporting
+  const [exporting, setExporting] = useState(false);
+
+  const load = useCallback(async (pg = 1) => {
+    setLoading(true);
+    setSelected(new Set());
+    try {
+      let fromISO: string | undefined;
+      let toISO: string | undefined;
+      if (preset === "custom") {
+        fromISO = customFrom || undefined;
+        toISO   = customTo   || undefined;
+      } else {
+        const { from, to } = getPresetDates(preset);
+        fromISO = from.toISOString();
+        toISO   = to.toISOString();
+      }
+      const res = await fetchOrders({
+        source: sourceFilter !== "all" ? sourceFilter : undefined,
+        dateFrom: fromISO, dateTo: toISO,
+        page: pg, limit: PAGE_SIZE,
+      });
+      setOrders(res.orders);
+      setTotal(res.total);
+      setPage(pg);
+    } finally { setLoading(false); }
+  }, [preset, customFrom, customTo, sourceFilter]);
+
+  useEffect(() => { void load(1); }, [load]);
+
+  useEffect(() => {
+    fetchDistinctSources().then(setSources).catch(() => {});
+  }, []);
+
+  /* ── Bulk delete ── */
+  async function handleBulkDelete() {
+    if (selected.size === 0) return;
+    if (!confirm(`Delete ${selected.size} selected order(s)? They will be moved to Trash.`)) return;
+    setDeleting(true);
+    try {
+      await Promise.all([...selected].map((id) => deleteOrder(id)));
+      await load(page);
+    } catch { alert("Some deletions failed. Please try again."); }
+    finally { setDeleting(false); }
+  }
+
+  /* ── Excel export (client-side) ── */
+  async function handleExportExcel() {
+    setExporting(true);
+    try {
+      // Fetch ALL matching rows (not just current page)
+      let fromISO: string | undefined;
+      let toISO: string | undefined;
+      if (preset === "custom") {
+        fromISO = customFrom || undefined;
+        toISO   = customTo   || undefined;
+      } else {
+        const { from, to } = getPresetDates(preset);
+        fromISO = from.toISOString();
+        toISO   = to.toISOString();
+      }
+      const res = await fetchOrders({
+        source: sourceFilter !== "all" ? sourceFilter : undefined,
+        dateFrom: fromISO, dateTo: toISO,
+        page: 1, limit: 1000,
+      });
+      const rows = res.orders.map((o, i) => ({
+        "#":              i + 1,
+        "Order ID":       o.orderId,
+        "Name":           o.name,
+        "Phone":          o.phone,
+        "Source":         sourceLabel(o.source),
+        "Date & Time":    fmtDateTime(o.createdAt),
+        "Amount (₹)":     o.quantity === 1 ? 999 : o.quantity === 2 ? 1499 : 1999,
+        "Qty":            o.quantity,
+        "Status":         o.status,
+        "City":           o.city ?? "",
+        "State":          o.state ?? "",
+        "Pincode":        o.pincode,
+        "Pixel Status":   o.eventId ? "Tracked" : "Not Tracked",
+        "Event ID":       o.eventId ?? "",
+        "Visitor Source": o.visitorSource ?? "",
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Order-Source Analysis");
+
+      // Column widths
+      ws["!cols"] = [
+        { wch: 4 }, { wch: 16 }, { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 20 },
+        { wch: 10 }, { wch: 5 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 10 },
+        { wch: 14 }, { wch: 38 }, { wch: 16 },
+      ];
+      const today = new Date().toISOString().split("T")[0];
+      XLSX.writeFile(wb, `order-source-${today}.xlsx`);
+    } catch { alert("Export failed. Please try again."); }
+    finally { setExporting(false); }
+  }
+
+  /* ── Auto-clean ── */
+  async function handleCleanup() {
+    if (!confirm(`This will permanently trash all orders older than ${cleanupDays} days. Continue?`)) return;
+    setCleaning(true); setCleanupResult(null);
+    try {
+      const r = await cleanupOldOrders(cleanupDays);
+      setCleanupResult(`✅ ${r.deleted} order(s) moved to Trash (cutoff: ${r.cutoffDate.split("T")[0]})`);
+      await load(1);
+    } catch (e) {
+      setCleanupResult(`❌ ${e instanceof Error ? e.message : "Cleanup failed"}`);
+    } finally { setCleaning(false); }
+  }
+
+  /* ── Summary stats ── */
+  const totalRevenue = orders.reduce((sum, o) => sum + (o.quantity === 1 ? 999 : o.quantity === 2 ? 1499 : 1999), 0);
+  const tracked = orders.filter((o) => o.eventId).length;
+  const bySource: Record<string, number> = {};
+  orders.forEach((o) => { bySource[o.source] = (bySource[o.source] ?? 0) + 1; });
+
+  const allSelected = orders.length > 0 && orders.every((o) => selected.has(o.id));
+  function toggleAll() {
+    if (allSelected) { setSelected(new Set()); }
+    else { setSelected(new Set(orders.map((o) => o.id))); }
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-green-700" /> Order-Source Analysis
+          </h2>
+          <p className="text-xs text-gray-500 mt-0.5">Filter orders by time & source, export to Excel, or clean up old data</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => load(page)}
+            className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600" title="Refresh">
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          </button>
+          <button onClick={handleExportExcel} disabled={exporting || loading}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 disabled:opacity-50">
+            {exporting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5" />}
+            Excel Download
+          </button>
+          <button onClick={() => { setCleanupResult(null); setShowCleanup(true); }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold bg-red-50 hover:bg-red-100 text-red-700 border border-red-200">
+            <Trash className="w-3.5 h-3.5" /> Auto-Clean
+          </button>
+        </div>
+      </div>
+
+      {/* Filter Row */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+        {/* Time presets */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-semibold text-gray-500 flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> Time:</span>
+          {(["30min", "1hr", "today", "yesterday", "custom"] as TimePreset[]).map((p) => (
+            <button key={p} onClick={() => setPreset(p)}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all border ${preset === p ? "bg-green-700 text-white border-green-700" : "bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-300"}`}>
+              {p === "30min" ? "30 Min" : p === "1hr" ? "1 Hour" : p === "today" ? "Today" : p === "yesterday" ? "Yesterday" : "Custom"}
+            </button>
+          ))}
+        </div>
+
+        {/* Custom date range */}
+        {preset === "custom" && (
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-semibold text-gray-500">From:</label>
+              <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)}
+                className="text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-green-500/30" />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-semibold text-gray-500">To:</label>
+              <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)}
+                className="text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-green-500/30" />
+            </div>
+          </div>
+        )}
+
+        {/* Source filter */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-semibold text-gray-500 flex items-center gap-1"><Filter className="w-3.5 h-3.5" /> Source:</span>
+          <button onClick={() => setSourceFilter("all")}
+            className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-all ${sourceFilter === "all" ? "bg-green-700 text-white border-green-700" : "bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-300"}`}>
+            All Sources
+          </button>
+          <button onClick={() => setSourceFilter("direct")}
+            className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-all ${sourceFilter === "direct" ? "bg-green-700 text-white border-green-700" : "bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-300"}`}>
+            Main (Direct)
+          </button>
+          {sources.filter((s) => s && s !== "direct").map((s) => (
+            <button key={s} onClick={() => setSourceFilter(s)}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-all ${sourceFilter === s ? "bg-green-700 text-white border-green-700" : "bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-300"}`}>
+              {sourceLabel(s)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Total Orders", value: total, color: "text-gray-800", bg: "bg-white border-gray-200" },
+          { label: "Page Revenue", value: `₹${totalRevenue.toLocaleString("en-IN")}`, color: "text-green-800", bg: "bg-green-50 border-green-200" },
+          { label: "Pixel Tracked", value: `${tracked}/${orders.length}`, color: "text-blue-800", bg: "bg-blue-50 border-blue-200" },
+          { label: "Top Source", value: Object.entries(bySource).sort((a, b) => b[1] - a[1])[0]?.[0] ? sourceLabel(Object.entries(bySource).sort((a, b) => b[1] - a[1])[0][0]) : "—", color: "text-purple-800", bg: "bg-purple-50 border-purple-200" },
+        ].map(({ label, value, color, bg }) => (
+          <div key={label} className={`rounded-xl border px-4 py-3 ${bg}`}>
+            <p className={`text-xs opacity-60 uppercase font-semibold ${color}`}>{label}</p>
+            <p className={`text-xl font-bold ${color} truncate`}>{value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5">
+          <span className="text-sm font-semibold text-red-700">{selected.size} selected</span>
+          <button onClick={handleBulkDelete} disabled={deleting}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50">
+            {deleting ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+            Delete Selected
+          </button>
+          <button onClick={() => setSelected(new Set())} className="text-xs text-gray-500 hover:text-gray-700">Clear</button>
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        {loading ? (
+          <div className="flex items-center justify-center h-40 text-gray-400">
+            <RefreshCw className="w-5 h-5 animate-spin mr-2" /> Loading...
+          </div>
+        ) : orders.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+            <BarChart3 className="w-10 h-10 mb-3 opacity-30" />
+            <p className="text-sm font-medium">No orders found for this filter</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="px-3 py-3 text-left">
+                    <input type="checkbox" checked={allSelected} onChange={toggleAll}
+                      className="rounded border-gray-300 accent-green-700" />
+                  </th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Order ID</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Name</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Source</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date & Time</th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">City / State</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Pixel</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {orders.map((o) => (
+                  <tr key={o.id} className={`hover:bg-gray-50 transition-colors ${selected.has(o.id) ? "bg-red-50" : ""}`}>
+                    <td className="px-3 py-3">
+                      <input type="checkbox" checked={selected.has(o.id)}
+                        onChange={() => { const n = new Set(selected); n.has(o.id) ? n.delete(o.id) : n.add(o.id); setSelected(n); }}
+                        className="rounded border-gray-300 accent-red-600" />
+                    </td>
+                    <td className="px-3 py-3">
+                      <code className="text-xs font-mono text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">{o.orderId}</code>
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="font-medium text-gray-900 text-sm">{o.name}</div>
+                      <div className="text-xs text-gray-400">{o.phone}</div>
+                    </td>
+                    <td className="px-3 py-3">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
+                        style={{ background: GOLD + "22", color: "#92660a" }}>
+                        {sourceLabel(o.source)}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{fmtDateTime(o.createdAt)}</td>
+                    <td className="px-3 py-3 text-right font-semibold text-gray-800">
+                      ₹{(o.quantity === 1 ? 999 : o.quantity === 2 ? 1499 : 1999).toLocaleString("en-IN")}
+                    </td>
+                    <td className="px-3 py-3">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[o.status] ?? "bg-gray-100 text-gray-600"}`}>
+                        {o.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-xs text-gray-500">
+                      {o.city || o.state ? `${o.city ?? ""}${o.city && o.state ? ", " : ""}${o.state ?? ""}` : "—"}
+                    </td>
+                    <td className="px-3 py-3">
+                      {o.eventId
+                        ? <span className="inline-flex items-center gap-1 text-xs text-green-700 font-semibold"><CheckCircle className="w-3.5 h-3.5" /> Tracked</span>
+                        : <span className="inline-flex items-center gap-1 text-xs text-amber-600 font-semibold"><AlertTriangle className="w-3.5 h-3.5" /> Untracked</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {total > PAGE_SIZE && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
+            <span className="text-xs text-gray-500">
+              Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
+            </span>
+            <div className="flex items-center gap-2">
+              <button disabled={page <= 1} onClick={() => load(page - 1)}
+                className="px-3 py-1 text-xs font-semibold rounded-lg bg-white border border-gray-200 hover:bg-gray-100 disabled:opacity-40">← Prev</button>
+              <span className="text-xs font-semibold text-gray-600">Page {page}</span>
+              <button disabled={page * PAGE_SIZE >= total} onClick={() => load(page + 1)}
+                className="px-3 py-1 text-xs font-semibold rounded-lg bg-white border border-gray-200 hover:bg-gray-100 disabled:opacity-40">Next →</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Auto-Clean Modal */}
+      {showCleanup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <Trash className="w-5 h-5 text-red-600" />
+                <h3 className="font-bold text-gray-900">Auto-Clean Orders</h3>
+              </div>
+              <button onClick={() => setShowCleanup(false)}><X className="w-4 h-4 text-gray-400" /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-600">
+                Move old orders to Trash to free up storage. This action is reversible (orders go to Trash, not permanently deleted).
+              </p>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-2 block">Delete orders older than:</label>
+                <div className="flex items-center gap-2">
+                  {[30, 60, 90, 180].map((d) => (
+                    <button key={d} onClick={() => setCleanupDays(d)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${cleanupDays === d ? "bg-red-600 text-white border-red-600" : "bg-gray-50 text-gray-600 border-gray-200"}`}>
+                      {d}d
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-400 mt-2">
+                  Orders before {(() => { const d = new Date(); d.setDate(d.getDate() - cleanupDays); return d.toLocaleDateString("en-IN"); })()} will be moved to Trash.
+                </p>
+              </div>
+              {cleanupResult && (
+                <div className={`text-sm rounded-lg px-3 py-2 ${cleanupResult.startsWith("✅") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                  {cleanupResult}
+                </div>
+              )}
+              <div className="flex gap-2 pt-1">
+                <button onClick={() => setShowCleanup(false)} className="flex-1 px-4 py-2 rounded-lg text-sm bg-gray-100 hover:bg-gray-200 text-gray-600">Cancel</button>
+                <button onClick={handleCleanup} disabled={cleaning}
+                  className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50">
+                  {cleaning ? "Cleaning..." : `Clean (${cleanupDays}d)`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────
    Main Export
 ────────────────────────────────────────────── */
 export function AdminMarketing() {
-  const [tab, setTab] = useState<"hub" | "reviews">("hub");
+  const [tab, setTab] = useState<"hub" | "reviews" | "analysis">("hub");
 
   return (
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-bold text-gray-900">Marketing</h1>
-        <p className="text-xs text-gray-500 mt-0.5">Agency tracking profiles, health monitoring, and customer reviews</p>
+        <p className="text-xs text-gray-500 mt-0.5">Agency tracking profiles, health monitoring, reviews, and order attribution</p>
       </div>
 
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit flex-wrap">
         <button onClick={() => setTab("hub")}
           className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${tab === "hub" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
           <span className="flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5" /> Marketing Hub</span>
+        </button>
+        <button onClick={() => setTab("analysis")}
+          className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${tab === "analysis" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+          <span className="flex items-center gap-1.5"><BarChart3 className="w-3.5 h-3.5" /> Order-Source Analysis</span>
         </button>
         <button onClick={() => setTab("reviews")}
           className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${tab === "reviews" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
@@ -1019,7 +1462,9 @@ export function AdminMarketing() {
         </button>
       </div>
 
-      {tab === "hub" ? <MarketingHub /> : <ReviewsTab />}
+      {tab === "hub" && <MarketingHub />}
+      {tab === "analysis" && <OrderSourceAnalysis />}
+      {tab === "reviews" && <ReviewsTab />}
     </div>
   );
 }

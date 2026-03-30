@@ -77,7 +77,7 @@ export interface Order {
   pincode: string; city: string | null; state: string | null; quantity: number; product: string; source: string; status: string;
   paymentMethod: string | null; paymentId: string | null; paymentStatus: string | null;
   trackingId: string | null; courier: string | null; visitorSource: string | null;
-  website: string | null; domain: string | null;
+  website: string | null; domain: string | null; eventId: string | null;
   createdAt: string; isRepeat?: boolean;
 }
 
@@ -129,16 +129,30 @@ export interface Review {
 
 export interface AppSettings { settings: Record<string, string>; exists: Record<string, boolean> }
 
-export async function fetchOrders(params: { search?: string; status?: string; dateFrom?: string; dateTo?: string; page?: number; limit?: number } = {}): Promise<{ orders: Order[]; total: number; page: number; limit: number; stats: OrderStats }> {
+export async function fetchOrders(params: { search?: string; status?: string; source?: string; dateFrom?: string; dateTo?: string; page?: number; limit?: number } = {}): Promise<{ orders: Order[]; total: number; page: number; limit: number; stats: OrderStats }> {
   const qs = new URLSearchParams();
   if (params.search) qs.set("search", params.search);
   if (params.status) qs.set("status", params.status);
+  if (params.source) qs.set("source", params.source);
   if (params.dateFrom) qs.set("dateFrom", params.dateFrom);
   if (params.dateTo) qs.set("dateTo", params.dateTo);
   if (params.page) qs.set("page", String(params.page));
   if (params.limit) qs.set("limit", String(params.limit));
   const res = await authFetch(`/admin/orders?${qs}`);
   if (!res.ok) throw new Error("Failed to fetch orders");
+  return res.json();
+}
+
+export async function fetchDistinctSources(): Promise<string[]> {
+  const res = await authFetch("/admin/orders/distinct-sources");
+  if (!res.ok) return [];
+  const data = await res.json() as { sources: string[] };
+  return data.sources;
+}
+
+export async function cleanupOldOrders(days: number): Promise<{ deleted: number; cutoffDate: string }> {
+  const res = await authFetch(`/admin/orders/cleanup?days=${days}&confirm=true`, { method: "DELETE" });
+  if (!res.ok) { const e = await res.json() as { error: string }; throw new Error(e.error); }
   return res.json();
 }
 
