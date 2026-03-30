@@ -170,6 +170,41 @@ router.get("/admin/orders", requireAdmin, async (req, res) => {
   }
 });
 
+// ── Full order edit ────────────────────────────────────────────────────────────
+router.patch("/admin/orders/:id", requireAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+    const body = req.body as {
+      name?: string; phone?: string; email?: string;
+      address?: string; city?: string; state?: string; pincode?: string;
+      status?: string; trackingId?: string; courier?: string;
+    };
+    const validStatuses = ["New", "Confirmed", "Shipped", "Cancelled", "Delivered"];
+    if (body.status && !validStatuses.includes(body.status)) {
+      res.status(400).json({ error: "Invalid status" }); return;
+    }
+    const updates: Record<string, unknown> = {};
+    if (body.name?.trim()) updates.name = body.name.trim();
+    if (body.phone?.trim()) updates.phone = body.phone.replace(/\D/g, "").slice(-10);
+    if (body.email !== undefined) updates.email = body.email.trim() || null;
+    if (body.address?.trim()) updates.address = body.address.trim();
+    if (body.city !== undefined) updates.city = body.city.trim() || null;
+    if (body.state !== undefined) updates.state = body.state.trim() || null;
+    if (body.pincode?.trim()) updates.pincode = body.pincode.trim();
+    if (body.status) updates.status = body.status;
+    if (body.trackingId !== undefined) updates.trackingId = body.trackingId.trim() || null;
+    if (body.courier !== undefined) updates.courier = body.courier.trim() || null;
+    if (Object.keys(updates).length === 0) { res.status(400).json({ error: "Nothing to update" }); return; }
+    const [updated] = await db.update(ordersTable).set(updates).where(eq(ordersTable.id, id)).returning();
+    if (!updated) { res.status(404).json({ error: "Order not found" }); return; }
+    res.json({ ok: true, order: updated });
+  } catch (err) {
+    req.log.error({ err }, "Failed to edit order");
+    res.status(500).json({ error: "Edit failed" });
+  }
+});
+
 router.patch("/admin/orders/:id/status", requireAdmin, async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);

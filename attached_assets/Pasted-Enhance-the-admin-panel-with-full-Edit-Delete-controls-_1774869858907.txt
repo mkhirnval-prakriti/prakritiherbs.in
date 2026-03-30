@@ -1,0 +1,142 @@
+Enhance the admin panel with full Edit/Delete controls AND ensure BOTH backend and frontend UI are fully implemented.
+
+========================
+CRITICAL RULE (IMPORTANT)
+=========================
+
+* Do NOT stop after backend changes
+* UI implementation is MANDATORY
+* Show all new features in admin panel UI
+* If any feature already exists, DO NOT break or replace it — extend it
+
+========================
+BACKEND REQUIREMENTS
+====================
+
+1. Add APIs:
+
+DELETE /api/admin/orders/:id
+DELETE /api/admin/lead-tracking/:id
+
+PATCH /api/admin/orders/:id
+PATCH /api/admin/lead-tracking/:id
+
+POST /api/admin/orders/delete-bulk
+POST /api/admin/lead-tracking/delete-bulk
+
+DELETE /api/admin/lead-tracking/cleanup
+
+2. Add validation:
+
+* Prevent accidental delete
+* Require confirmation flag
+
+3. Optimize queries:
+
+* Add indexes on:
+
+  * created_at
+  * phone
+  * source
+
+========================
+FRONTEND UI (MANDATORY)
+=======================
+
+1. Orders Table:
+
+* Add column: Actions
+
+  * Edit ✏️ button
+  * Delete 🗑️ button
+
+2. Lead Tracking Table:
+
+* Same Action column
+
+3. Edit Modal:
+
+* Open popup
+* Editable fields:
+
+  * phone
+  * status
+  * notes
+
+4. Delete Confirmation Popup:
+
+* "Are you sure?" with Yes/Cancel
+
+5. Bulk Actions:
+
+* Checkbox selection
+* "Delete Selected" button
+
+6. Cleanup UI:
+
+* Button: "Delete Old Data"
+* Options:
+
+  * older than X days
+  * only missed calls
+
+========================
+PERFORMANCE OPTIMIZATION
+========================
+
+1. Pagination:
+
+* Limit API response (e.g. 50 per page)
+
+2. Lazy loading:
+
+* Load data on scroll or page change
+
+3. Debounce filters:
+
+* Avoid too many API calls
+
+4. Index DB queries:
+
+* Speed up search & filters
+
+5. Avoid heavy re-renders:
+
+* Optimize React components
+
+6. Handle concurrency:
+
+* Ensure system stable for 300–500 users
+
+========================
+EXISTING SYSTEM SAFETY
+======================
+
+* DO NOT modify:
+
+  * Pixel tracking
+  * Order flow
+  * Lead tracking logic
+
+* Only ADD new features
+
+========================
+FINAL CHECK
+===========
+
+After implementation:
+
+✔ Backend APIs working
+✔ UI visible and usable
+✔ Buttons clickable
+✔ No console errors
+✔ System fast under load
+
+========================
+GOAL
+====
+
+* Full control (Edit/Delete)
+* Full UI visibility
+* High performance (no lag with 300–500 users)
+* Stable production-ready system

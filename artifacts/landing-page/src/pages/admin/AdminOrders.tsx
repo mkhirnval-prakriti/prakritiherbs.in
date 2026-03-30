@@ -4,7 +4,7 @@ import {
   exportSingleOrderToPDF, exportOrdersToPDF, exportOrdersToCSV, logDownload,
   bulkUpdateOrderStatus, shipViaShinprocket, updateIndiaPostTracking,
   sendWhatsAppToOrder, shipViaShadowfax, getShadowfaxLabel,
-  deleteOrder, bulkDeleteOrders, isSuperAdmin,
+  deleteOrder, bulkDeleteOrders, isSuperAdmin, updateOrderFull,
   fetchTrashOrders, restoreOrdersFromTrash, emptyTrash, permanentDeleteOrder,
   type Order, type OrderStats, type TrashOrder,
 } from "@/lib/adminApi";
@@ -13,7 +13,7 @@ import autoTable from "jspdf-autotable";
 import {
   Search, RefreshCw, Download, Filter, FileSpreadsheet, FileText,
   ChevronLeft, ChevronRight, Package, CheckSquare, Square, AlertCircle,
-  Printer, Truck, MessageSquare, Star, X, Zap, ExternalLink, Tag, Trash2,
+  Printer, Truck, MessageSquare, Star, X, Zap, ExternalLink, Tag, Trash2, Pencil, Save,
 } from "lucide-react";
 
 const G = "#1B5E20";
@@ -362,6 +362,116 @@ function getPresetDates(preset: DatePreset): { from: string; to: string } {
   }
 }
 
+/* ── Edit Order Modal ───────────────────────────────────────────────────────── */
+function EditOrderModal({
+  order, onClose, onSave,
+}: { order: Order; onClose: () => void; onSave: (updated: Order) => void }) {
+  const [name, setName] = useState(order.name ?? "");
+  const [phone, setPhone] = useState(order.phone ?? "");
+  const [email, setEmail] = useState(order.email ?? "");
+  const [address, setAddress] = useState(order.address ?? "");
+  const [city, setCity] = useState(order.city ?? "");
+  const [state, setState] = useState(order.state ?? "");
+  const [pincode, setPincode] = useState(order.pincode ?? "");
+  const [status, setStatus] = useState(order.status ?? "New");
+  const [trackingId, setTrackingId] = useState(order.trackingId ?? "");
+  const [courier, setCourier] = useState(order.courier ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSave() {
+    setSaving(true); setError("");
+    try {
+      const result = await updateOrderFull(order.id, {
+        name: name.trim(), phone: phone.trim(), email: email.trim(),
+        address: address.trim(), city: city.trim(), state: state.trim(),
+        pincode: pincode.trim(), status, trackingId: trackingId.trim(), courier: courier.trim(),
+      });
+      onSave(result.order);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed");
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+          <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+            <Pencil className="w-4 h-4" style={{ color: G }} />
+            Edit Order #{order.orderId}
+          </h3>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: "Name", value: name, setter: setName, placeholder: "Customer name" },
+              { label: "Phone", value: phone, setter: setPhone, placeholder: "10-digit mobile" },
+              { label: "Email", value: email, setter: setEmail, placeholder: "email@example.com" },
+              { label: "Pincode", value: pincode, setter: setPincode, placeholder: "6-digit" },
+            ].map(({ label, value, setter, placeholder }) => (
+              <div key={label}>
+                <label className="text-xs font-semibold text-gray-500 block mb-1">{label}</label>
+                <input type="text" value={value} onChange={(e) => setter(e.target.value)} placeholder={placeholder}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+            ))}
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-500 block mb-1">Address</label>
+            <textarea value={address} onChange={(e) => setAddress(e.target.value)} rows={2} placeholder="Full address…"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-gray-500 block mb-1">City</label>
+              <input type="text" value={city} onChange={(e) => setCity(e.target.value)} placeholder="City"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-500 block mb-1">State</label>
+              <input type="text" value={state} onChange={(e) => setState(e.target.value)} placeholder="State"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-500 block mb-1">Order Status</label>
+            <select value={status} onChange={(e) => setStatus(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+              {["New", "Confirmed", "Shipped", "Delivered", "Cancelled"].map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-gray-500 block mb-1">Tracking ID</label>
+              <input type="text" value={trackingId} onChange={(e) => setTrackingId(e.target.value)} placeholder="AWB / Tracking no."
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-500 block mb-1">Courier</label>
+              <input type="text" value={courier} onChange={(e) => setCourier(e.target.value)} placeholder="Shiprocket, India Post…"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+            </div>
+          </div>
+          {error && <p className="text-xs text-red-600 font-medium bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+        </div>
+        <div className="sticky bottom-0 bg-white border-t border-gray-100 px-6 py-4 flex gap-2 rounded-b-2xl">
+          <button onClick={() => void handleSave()} disabled={saving}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold text-white rounded-xl disabled:opacity-50 transition-all"
+            style={{ background: `linear-gradient(135deg, ${G}, #2E7D32)` }}>
+            <Save className="w-4 h-4" />
+            {saving ? "Saving…" : "Save Changes"}
+          </button>
+          <button onClick={onClose} className="px-5 py-2.5 text-sm text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50">Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AdminOrders({ globalSearch, settings }: { globalSearch: string; settings: Record<string, string> }) {
   const [tab, setTab] = useState<"orders" | "trash">("orders");
 
@@ -383,6 +493,7 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [editOrder, setEditOrder] = useState<Order | null>(null);
 
   /* ── Trash tab state ── */
   const [trashOrders, setTrashOrders] = useState<TrashOrder[]>([]);
@@ -510,6 +621,17 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
 
   return (
     <div className="space-y-4">
+      {/* ── Edit Order Modal ── */}
+      {editOrder && (
+        <EditOrderModal
+          order={editOrder}
+          onClose={() => setEditOrder(null)}
+          onSave={(updated) => {
+            setOrders((prev) => prev.map((o) => o.id === updated.id ? updated : o));
+            setEditOrder(null);
+          }}
+        />
+      )}
       {/* ── Empty Trash Confirmation Modal ── */}
       {emptyConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -765,6 +887,13 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
                           <td className="px-3 py-3">
                             <div className="flex items-center gap-1">
                               <RowActions order={order} settings={settings} onShipped={() => void loadOrders(page)} />
+                              <button
+                                onClick={() => setEditOrder(order)}
+                                title="Edit Order"
+                                className="ml-1 p-1.5 rounded-lg text-gray-300 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
                               {isSA && (
                                 deleteConfirm === order.id ? (
                                   <div className="flex items-center gap-1 ml-1">

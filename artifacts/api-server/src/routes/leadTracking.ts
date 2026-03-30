@@ -204,4 +204,87 @@ router.patch("/admin/lead-tracking/:id/status", requireAdmin, async (req, res) =
   }
 });
 
+// ── Admin: full edit lead ─────────────────────────────────────────────────────
+router.patch("/admin/lead-tracking/:id", requireAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+    const { customerPhone, callStatus, notes } = req.body as {
+      customerPhone?: string; callStatus?: string; notes?: string;
+    };
+    const validStatuses = ["clicked", "missed", "answered", "called_back"];
+    if (callStatus && !validStatuses.includes(callStatus))
+      return res.status(400).json({ error: "Invalid status" });
+
+    const sets: string[] = [];
+    const params: unknown[] = [];
+    if (customerPhone !== undefined) { params.push(customerPhone.replace(/\D/g, "").slice(-10) || null); sets.push(`customer_phone = $${params.length}`); }
+    if (callStatus !== undefined) { params.push(callStatus); sets.push(`call_status = $${params.length}`); }
+    if (notes !== undefined) { params.push(notes.trim() || null); sets.push(`notes = $${params.length}`); }
+    if (sets.length === 0) return res.status(400).json({ error: "Nothing to update" });
+
+    params.push(id);
+    const { rows } = await pool.query(
+      `UPDATE lead_tracking SET ${sets.join(", ")} WHERE id = $${params.length} RETURNING *`,
+      params
+    );
+    if (rows.length === 0) return res.status(404).json({ error: "Lead not found" });
+    return res.json({ ok: true, lead: rows[0] });
+  } catch (err) {
+    req.log.error({ err }, "[LeadTrack] Edit failed");
+    return res.status(500).json({ error: "Edit failed" });
+  }
+});
+
+// ── Admin: delete single lead ─────────────────────────────────────────────────
+router.delete("/admin/lead-tracking/cleanup", requireAdmin, async (req, res) => {
+  try {
+    const { days, missedOnly, confirm: confirmFlag } =
+      req.query as Record<string, string | undefined>;
+    if (confirmFlag !== "true") return res.status(400).json({ error: "confirm=true required" });
+    const daysNum = Math.max(1, parseInt(days ?? "30", 10));
+    let query = `DELETE FROM lead_tracking WHERE created_at < NOW() - INTERVAL '${daysNum} days'`;
+    if (missedOnly === "true") query += ` AND call_status = 'missed'`;
+    query += ` RETURNING id`;
+    const { rows } = await pool.query(query);
+    return res.json({ ok: true, deleted: rows.length });
+  } catch (err) {
+    req.log.error({ err }, "[LeadTrack] Cleanup failed");
+    return res.status(500).json({ error: "Cleanup failed" });
+  }
+});
+
+router.delete("/admin/lead-tracking/:id", requireAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+    const { confirm: confirmFlag } = req.query as Record<string, string | undefined>;
+    if (confirmFlag !== "true") return res.status(400).json({ error: "confirm=true required" });
+    const { rows } = await pool.query(
+      `DELETE FROM lead_tracking WHERE id = $1 RETURNING id`, [id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: "Lead not found" });
+    return res.json({ ok: true, id });
+  } catch (err) {
+    req.log.error({ err }, "[LeadTrack] Delete failed");
+    return res.status(500).json({ error: "Delete failed" });
+  }
+});
+
+// ── Admin: bulk delete leads ──────────────────────────────────────────────────
+router.post("/admin/lead-tracking/delete-bulk", requireAdmin, async (req, res) => {
+  try {
+    const { ids, confirm: confirmFlag } = req.body as { ids?: number[]; confirm?: boolean };
+    if (!confirmFlag) return res.status(400).json({ error: "confirm: true required" });
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: "ids[] required" });
+    const { rows } = await pool.query(
+      `DELETE FROM lead_tracking WHERE id = ANY($1) RETURNING id`, [ids]
+    );
+    return res.json({ ok: true, deleted: rows.length });
+  } catch (err) {
+    req.log.error({ err }, "[LeadTrack] Bulk delete failed");
+    return res.status(500).json({ error: "Bulk delete failed" });
+  }
+});
+
 export default router;

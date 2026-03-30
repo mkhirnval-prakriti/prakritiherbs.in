@@ -719,6 +719,7 @@ export interface LeadEntry {
   country: string | null;
   website: string | null;
   domain: string | null;
+  notes: string | null;
   created_at: string;
 }
 export interface LeadFilters {
@@ -779,4 +780,54 @@ export async function fetchEventTracking(filters?: {
   const res = await authFetch(`/admin/event-tracking${qs ? `?${qs}` : ""}`);
   if (!res.ok) throw new Error("Failed to fetch event tracking");
   return res.json() as Promise<{ data: EventTrackingEntry[]; summary: EventTrackingSummary }>;
+}
+
+// ── Lead Tracking — Edit / Delete / Cleanup ──────────────────────────────────
+export async function updateLead(
+  id: number, data: { customerPhone?: string; callStatus?: string; notes?: string }
+): Promise<{ ok: boolean; lead: LeadEntry }> {
+  const res = await authFetch(`/admin/lead-tracking/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) { const e = await res.json() as { error: string }; throw new Error(e.error); }
+  return res.json();
+}
+
+export async function deleteLead(id: number): Promise<void> {
+  const res = await authFetch(`/admin/lead-tracking/${id}?confirm=true`, { method: "DELETE" });
+  if (!res.ok) { const e = await res.json() as { error: string }; throw new Error(e.error); }
+}
+
+export async function bulkDeleteLeads(ids: number[]): Promise<{ deleted: number }> {
+  const res = await authFetch("/admin/lead-tracking/delete-bulk", {
+    method: "POST",
+    body: JSON.stringify({ ids, confirm: true }),
+  });
+  if (!res.ok) { const e = await res.json() as { error: string }; throw new Error(e.error); }
+  return res.json();
+}
+
+export async function cleanupLeads(days: number, missedOnly: boolean): Promise<{ deleted: number }> {
+  const qs = new URLSearchParams({ days: String(days), missedOnly: String(missedOnly), confirm: "true" });
+  const res = await authFetch(`/admin/lead-tracking/cleanup?${qs}`, { method: "DELETE" });
+  if (!res.ok) { const e = await res.json() as { error: string }; throw new Error(e.error); }
+  return res.json();
+}
+
+// ── Orders — Full Edit ────────────────────────────────────────────────────────
+export async function updateOrderFull(
+  id: number,
+  data: {
+    name?: string; phone?: string; email?: string;
+    address?: string; city?: string; state?: string; pincode?: string;
+    status?: string; trackingId?: string; courier?: string;
+  }
+): Promise<{ ok: boolean; order: Order }> {
+  const res = await authFetch(`/admin/orders/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) { const e = await res.json() as { error: string }; throw new Error(e.error); }
+  return res.json();
 }
