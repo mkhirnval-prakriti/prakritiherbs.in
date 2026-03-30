@@ -8,8 +8,9 @@
  */
 
 const PIXEL_ID = "1188710012812588";
-const SS_PURCHASE_KEY = "pixel_payment_initiated";
-const SS_PURCHASE_FIRED = "pixel_purchase_fired";
+const SS_PURCHASE_KEY    = "pixel_payment_initiated";
+const SS_PURCHASE_FIRED  = "pixel_purchase_fired";
+const SS_PURCHASE_EVT_ID = "pixel_purchase_event_id";
 
 /**
  * Generate a unique event ID for client–server deduplication.
@@ -114,11 +115,16 @@ export function fireInitiateCheckout(params?: { quantity?: number }): void {
 
 /**
  * Mark that a payment was initiated so Purchase can fire on return.
+ * Also generates and persists a unique eventId so the browser Purchase
+ * call includes eventID for proper Meta deduplication (even though CAPI
+ * does not currently fire for Cashfree, this is future-proof).
  * Call this right before redirecting to Cashfree.
  */
 export function markPaymentInitiated(): void {
   try {
+    const eventId = generateEventId();
     sessionStorage.setItem(SS_PURCHASE_KEY, "1");
+    sessionStorage.setItem(SS_PURCHASE_EVT_ID, eventId);
     sessionStorage.removeItem(SS_PURCHASE_FIRED);
   } catch {
     // ignore
@@ -219,18 +225,26 @@ export function checkAndFirePurchase(): void {
     const { detected, orderId } = detectCashfreeReturn();
     if (!detected) return;
 
+    // Retrieve the eventId stored when markPaymentInitiated() was called
+    const eventId = sessionStorage.getItem(SS_PURCHASE_EVT_ID) ?? undefined;
+
     // Mark as fired before the fbq call so a re-render can never double-fire
     sessionStorage.setItem(SS_PURCHASE_FIRED, "1");
     sessionStorage.removeItem(SS_PURCHASE_KEY);
+    sessionStorage.removeItem(SS_PURCHASE_EVT_ID);
 
     fbq("track", "Purchase", {
       content_name: "KamaSutra Gold+",
       currency: "INR",
       value: 999,
-      ...(orderId ? { order_id: orderId } : {}),
+      ...(orderId  ? { order_id: orderId }   : {}),
+      ...(eventId  ? { eventID: eventId }    : {}),
     });
 
-    console.log("[Pixel] Purchase event fired", orderId ? `order_id=${orderId}` : "(no order_id in URL)");
+    console.log("[Pixel] Purchase event fired",
+      orderId  ? `order_id=${orderId}` : "(no order_id in URL)",
+      eventId  ? `eventID=${eventId}`  : "(no eventID)",
+    );
   } catch {
     // Pixel errors must never affect the page
   }
