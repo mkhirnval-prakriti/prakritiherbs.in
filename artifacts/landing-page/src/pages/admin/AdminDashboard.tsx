@@ -20,19 +20,20 @@ import { AdminOrders } from "./AdminOrders";
 import { AdminAnalytics } from "./AdminAnalytics";
 import { AdminMarketing } from "./AdminMarketing";
 import { AdminSettings } from "./AdminSettings";
+import { AdminEventTracking } from "./AdminEventTracking";
 import {
   Home, Package, AlertTriangle, BarChart3, Star, Settings, History,
   Search, LogOut, Menu, X, RefreshCw, Phone, MapPin, MessageSquare,
   TrendingUp, ShoppingCart, Eye, ArrowUpRight, Globe, FileSpreadsheet, FileText,
   ChevronLeft, ChevronRight, Filter, CheckCircle, Radio, Download, CheckCheck,
-  Trash2, PlusCircle, Users, CalendarRange, CheckSquare, Square,
+  Trash2, PlusCircle, Users, CalendarRange, CheckSquare, Square, Fingerprint,
 } from "lucide-react";
 
 const G = "#1B5E20";
 const GOLD = "#C9A14A";
 const PIE_COLORS = [G, GOLD, "#2196F3", "#FF5722", "#9C27B0", "#00BCD4"];
 
-type Page = "home" | "orders" | "abandoned" | "analytics" | "marketing" | "settings" | "downloads";
+type Page = "home" | "orders" | "abandoned" | "analytics" | "marketing" | "settings" | "downloads" | "event-tracking";
 
 const RECOVERY_COLORS: Record<string, string> = {
   New: "bg-blue-100 text-blue-700", Called: "bg-yellow-100 text-yellow-700",
@@ -86,6 +87,7 @@ function Sidebar({ page, setPage, sidebarOpen, setSidebarOpen, adminUser, onLogo
     { id: "abandoned", icon: <AlertTriangle className="w-4 h-4" />, label: "Abandoned Carts", badge: badgeCounts.abandoned > 0 ? badgeCounts.abandoned : undefined },
     { id: "analytics", icon: <BarChart3 className="w-4 h-4" />, label: "Analytics" },
     { id: "marketing", icon: <Star className="w-4 h-4" />, label: "Marketing" },
+    { id: "event-tracking", icon: <Fingerprint className="w-4 h-4" />, label: "Event Tracking" },
     { id: "settings", icon: <Settings className="w-4 h-4" />, label: "Settings" },
     { id: "downloads", icon: <History className="w-4 h-4" />, label: "Downloads" },
   ];
@@ -1205,6 +1207,7 @@ export default function AdminDashboard() {
           {page === "abandoned" && <AbandonedCartsPage />}
           {page === "analytics" && <AdminAnalytics />}
           {page === "marketing" && <AdminMarketing />}
+          {page === "event-tracking" && <AdminEventTracking />}
           {page === "settings" && <AdminSettings />}
           {page === "downloads" && <DownloadsPage />}
         </main>

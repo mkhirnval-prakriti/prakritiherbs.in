@@ -677,3 +677,34 @@ export async function testEmailReport(to: string): Promise<{ ok: boolean; messag
   const data = await res.json() as { ok?: boolean; message?: string };
   return { ok: !!data.ok, message: data.message ?? (res.ok ? "Sent" : "Failed") };
 }
+
+export type EventTrackingStatus = "Matched" | "Missing" | "Duplicate";
+export interface EventTrackingEntry {
+  orderId: string;
+  phone: string;
+  eventId: string | null;
+  source: string;
+  createdAt: string;
+  status: EventTrackingStatus;
+}
+export interface EventTrackingSummary {
+  total: number;
+  matched: number;
+  missing: number;
+  duplicate: number;
+}
+
+export async function fetchEventTracking(filters?: {
+  source?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}): Promise<{ data: EventTrackingEntry[]; summary: EventTrackingSummary }> {
+  const params = new URLSearchParams();
+  if (filters?.source) params.set("source", filters.source);
+  if (filters?.dateFrom) params.set("dateFrom", filters.dateFrom);
+  if (filters?.dateTo) params.set("dateTo", filters.dateTo);
+  const qs = params.toString();
+  const res = await authFetch(`/admin/event-tracking${qs ? `?${qs}` : ""}`);
+  if (!res.ok) throw new Error("Failed to fetch event tracking");
+  return res.json() as Promise<{ data: EventTrackingEntry[]; summary: EventTrackingSummary }>;
+}

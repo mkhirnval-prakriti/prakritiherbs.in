@@ -843,4 +843,76 @@ router.post("/admin/email/test", requireAdmin, async (req, res) => {
   return res.status(500).json({ ok: false, message: result.message });
 });
 
+// ── Event Match Tracking ─────────────────────────────────────────────────────
+router.get("/admin/event-tracking", requireAdmin, async (req, res) => {
+  try {
+    const { source, dateFrom, dateTo } = req.query as Record<string, string | undefined>;
+
+    let whereClause = `WHERE deleted_at IS NULL`;
+    const params: unknown[] = [];
+
+    if (source && source.trim()) {
+      params.push(source.trim().toLowerCase());
+      whereClause += ` AND LOWER(source) = $${params.length}`;
+    }
+    if (dateFrom && dateFrom.trim()) {
+      params.push(dateFrom.trim());
+      whereClause += ` AND created_at >= $${params.length}::date`;
+    }
+    if (dateTo && dateTo.trim()) {
+      params.push(dateTo.trim());
+      whereClause += ` AND created_at < ($${params.length}::date + INTERVAL '1 day')`;
+    }
+
+    const { rows } = await pool.query<{
+      order_id: string; phone: string; event_id: string | null;
+      source: string; created_at: string;
+    }>(
+      `SELECT order_id, phone, event_id, source, created_at
+       FROM orders
+       ${whereClause}
+       ORDER BY created_at DESC
+       LIMIT 500`,
+      params
+    );
+
+    // Find duplicate event_ids (non-null)
+    const eventIdCounts: Record<string, number> = {};
+    for (const row of rows) {
+      if (row.event_id) eventIdCounts[row.event_id] = (eventIdCounts[row.event_id] ?? 0) + 1;
+    }
+
+    const data = rows.map((row) => {
+      let status: "Matched" | "Missing" | "Duplicate";
+      if (!row.event_id) {
+        status = "Missing";
+      } else if (eventIdCounts[row.event_id]! > 1) {
+        status = "Duplicate";
+      } else {
+        status = "Matched";
+      }
+      return {
+        orderId: row.order_id,
+        phone: row.phone,
+        eventId: row.event_id ?? null,
+        source: row.source,
+        createdAt: row.created_at,
+        status,
+      };
+    });
+
+    const summary = {
+      total: data.length,
+      matched: data.filter((d) => d.status === "Matched").length,
+      missing: data.filter((d) => d.status === "Missing").length,
+      duplicate: data.filter((d) => d.status === "Duplicate").length,
+    };
+
+    return res.json({ data, summary });
+  } catch (err) {
+    req.log.error({ err }, "Event tracking fetch failed");
+    return res.status(500).json({ error: "Failed to fetch event tracking data" });
+  }
+});
+
 export default router;
