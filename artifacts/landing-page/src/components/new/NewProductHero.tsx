@@ -68,7 +68,7 @@ export function NewProductHero() {
           <div className="product-left-col">
             <div className="sticky-product-img">
               <img
-                src="/new-images/1.jpg"
+                src="/new-images/hero-banner.jpg"
                 alt="KamaSutra Gold+"
                 fetchPriority="high"
                 loading="eager"
