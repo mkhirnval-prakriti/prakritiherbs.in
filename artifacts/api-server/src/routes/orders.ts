@@ -82,6 +82,7 @@ router.post("/orders", async (req, res) => {
         source,
         visitorSource,
         landingPageUrl,
+        eventId: body.eventId ?? null,
         status: "New",
       })
       .returning();
