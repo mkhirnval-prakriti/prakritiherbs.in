@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, ShieldCheck, Truck, Package, X, Loader2, MapPin, CheckCircle, AlertCircle } from "lucide-react";
 import { cleanMobile, sendLeadToCRM, DuplicateOrderError, hasOrderedToday } from "@/lib/crm";
-import { fireLead, fireInitiateCheckout, markPaymentInitiated, generateEventId, getCookie } from "@/lib/pixel";
+import { fireLead, fireInitiateCheckout, markPaymentInitiated, generateEventId, getCookie, setAdvancedMatching } from "@/lib/pixel";
 import { getVisitorSource, startVisitorPing, getAgencySource, clearAgencySource, captureLandingUrl, getLandingPageUrl, clearLandingPageUrl } from "@/lib/visitorTracking";
 import { openWhatsApp } from "@/lib/whatsapp";
 
@@ -164,6 +164,7 @@ export function OrderForm() {
   const [orderError, setOrderError] = useState<string | null>(null);
   const [locationStatus, setLocationStatus] = useState<LocationStatus>("idle");
   const [pinLookupLoading, setPinLookupLoading] = useState(false);
+  const [_wurl, set_wurl] = useState("");
   const abandonedFired = useRef(false);
   const geoAttempted = useRef(false);
   const visitorSource = getVisitorSource();
@@ -243,6 +244,7 @@ export function OrderForm() {
   async function handleCODSubmit(e: React.FormEvent) {
     e.preventDefault();
     setOrderError(null);
+    if (_wurl.trim()) return; // honeypot filled — silent drop
     if (!validate()) return;
 
     const mobile = cleanMobile(phone);
@@ -285,6 +287,7 @@ export function OrderForm() {
           fbp: getCookie("_fbp"),
           fbc: getCookie("_fbc"),
           userAgent: navigator.userAgent,
+          _wurl: "",  // honeypot — real submissions always send empty string
         }),
       }).catch(() => {});
 
@@ -293,6 +296,10 @@ export function OrderForm() {
       const msg = `*New COD Order:*\n*Product:* KamaSutra Gold+\n*Name:* ${name}\n*Mobile:* ${mobile}\n*Address:* ${address}${city ? `, ${city}` : ""}${state ? `, ${state}` : ""}\n*Pincode:* ${pincode}\n*Qty:* ${quantity} bottle(s)`;
       openWhatsApp(msg);
 
+      void setAdvancedMatching({
+        phone: mobile, firstName: name.trim(),
+        city: city.trim() || undefined, state: state.trim() || undefined, zip: pincode.trim() || undefined,
+      });
       fireLead({ name: name.trim(), phone: mobile, eventId: leadEventId });
       // Clear agency attribution + landing URL after order — avoid carrying over to next session
       clearAgencySource();
@@ -414,6 +421,12 @@ export function OrderForm() {
               </p>
 
               <form onSubmit={handleCODSubmit} noValidate className="space-y-5">
+                {/* Honeypot — invisible to real users, filled by bots */}
+                <div aria-hidden="true" style={{ position: "absolute", left: "-9999px", width: 1, height: 1, overflow: "hidden" }}>
+                  <label htmlFor="wurl_trap2">Website</label>
+                  <input id="wurl_trap2" type="text" name="_wurl" value={_wurl} onChange={(e) => set_wurl(e.target.value)}
+                    tabIndex={-1} autoComplete="off" />
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
                   {/* Name */}

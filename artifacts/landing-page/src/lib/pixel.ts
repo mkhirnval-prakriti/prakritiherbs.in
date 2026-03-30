@@ -62,15 +62,26 @@ async function sha256(str: string): Promise<string> {
 
 /**
  * Call fbq('init') again with hashed user data so Meta can match events
- * to real Facebook profiles. Improves Event Match Quality score.
+ * to real Facebook profiles. Improves Event Match Quality (EMQ) score.
+ *
+ * Fields sent (all SHA-256 hashed as required by Meta Advanced Matching):
+ *  ph — phone   fn — first name   ct — city   st — state   zp — zip
+ *
  * Safe to call after the initial pixel init in index.html.
  */
-export async function setAdvancedMatching(params: { phone?: string; firstName?: string }): Promise<void> {
+export async function setAdvancedMatching(params: {
+  phone?: string;
+  firstName?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+}): Promise<void> {
   try {
     const fn = (window as unknown as { fbq?: (...a: unknown[]) => void }).fbq;
     if (typeof fn !== "function") return;
 
     const matchParams: Record<string, string> = {};
+
     if (params.phone) {
       const digits = params.phone.replace(/\D/g, "");
       const normalized = digits.length === 10 ? `91${digits}` : digits;
@@ -78,8 +89,27 @@ export async function setAdvancedMatching(params: { phone?: string; firstName?: 
       if (hashed) matchParams["ph"] = hashed;
     }
     if (params.firstName) {
-      const hashed = await sha256(params.firstName.split(" ")[0] ?? params.firstName);
-      if (hashed) matchParams["fn"] = hashed;
+      const nameParts = params.firstName.trim().split(/\s+/);
+      const first = nameParts[0] ?? params.firstName;
+      const last  = nameParts.length > 1 ? nameParts[nameParts.length - 1] : "";
+      const hashedFn = await sha256(first);
+      if (hashedFn) matchParams["fn"] = hashedFn;
+      if (last) {
+        const hashedLn = await sha256(last);
+        if (hashedLn) matchParams["ln"] = hashedLn;
+      }
+    }
+    if (params.city) {
+      const hashed = await sha256(params.city.trim().toLowerCase());
+      if (hashed) matchParams["ct"] = hashed;
+    }
+    if (params.state) {
+      const hashed = await sha256(params.state.trim().toLowerCase());
+      if (hashed) matchParams["st"] = hashed;
+    }
+    if (params.zip) {
+      const hashed = await sha256(params.zip.trim().replace(/\D/g, ""));
+      if (hashed) matchParams["zp"] = hashed;
     }
 
     if (Object.keys(matchParams).length > 0) {

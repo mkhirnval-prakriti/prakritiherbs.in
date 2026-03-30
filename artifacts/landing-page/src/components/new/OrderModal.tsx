@@ -131,6 +131,7 @@ export function OrderModal({ open, onClose, bannerUrl }: { open: boolean; onClos
   const [orderError, setOrderError] = useState<string | null>(null);
   const [locationStatus, setLocationStatus] = useState<LocationStatus>("idle");
   const [pinLookupLoading, setPinLookupLoading] = useState(false);
+  const [_wurl, set_wurl] = useState("");
   const geoAttempted = useRef(false);
   const visitorSource = getVisitorSource();
   const agencySource = getAgencySource();
@@ -192,6 +193,7 @@ export function OrderModal({ open, onClose, bannerUrl }: { open: boolean; onClos
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setOrderError(null);
+    if (_wurl.trim()) return; // honeypot filled — silent drop
     if (!validate()) return;
     const mobile = cleanMobile(phone);
     if (!mobile) { setOrderError("Valid 10-digit mobile number enter करें।"); return; }
@@ -225,6 +227,7 @@ export function OrderModal({ open, onClose, bannerUrl }: { open: boolean; onClos
           fbc: getCookie("_fbc"),
           userAgent: navigator.userAgent,
           amount: pack.price,
+          _wurl: "",  // honeypot — real submissions always send empty string
         }),
       }).catch(() => {});
 
@@ -235,7 +238,10 @@ export function OrderModal({ open, onClose, bannerUrl }: { open: boolean; onClos
       const msg = `*New COD Order — KamaSutra Gold+*\n*Name:* ${name.trim()}\n*Mobile:* ${mobile}\n*Address:* ${address.trim()}${city ? `, ${city}` : ""}${state ? `, ${state}` : ""}\n*Pincode:* ${pincode}\n*Qty:* ${pack.label} (${pack.qty} bottle)\n*Amount:* ₹${pack.price} (COD)\n*Source:* ${agencySource || "direct"}`;
       openWhatsApp(msg);
 
-      void setAdvancedMatching({ phone: mobile, firstName: name.trim() });
+      void setAdvancedMatching({
+        phone: mobile, firstName: name.trim(),
+        city: city.trim() || undefined, state: state.trim() || undefined, zip: pincode.trim() || undefined,
+      });
       fireLead({ phone: mobile, eventId: leadEventId, value: pack.price });
       clearAgencySource();
       clearLandingPageUrl();
@@ -378,6 +384,12 @@ export function OrderModal({ open, onClose, bannerUrl }: { open: boolean; onClos
 
                   {/* Form */}
                   <form onSubmit={handleSubmit} noValidate>
+                    {/* Honeypot — invisible to real users, filled by bots */}
+                    <div aria-hidden="true" style={{ position: "absolute", left: "-9999px", width: 1, height: 1, overflow: "hidden" }}>
+                      <label htmlFor="wurl_trap">Website</label>
+                      <input id="wurl_trap" type="text" name="_wurl" value={_wurl} onChange={(e) => set_wurl(e.target.value)}
+                        tabIndex={-1} autoComplete="off" />
+                    </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
                       {/* Name */}

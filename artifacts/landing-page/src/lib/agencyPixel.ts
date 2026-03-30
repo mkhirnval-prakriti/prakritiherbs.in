@@ -62,3 +62,41 @@ export async function initAgencyPixelIfNeeded(source: string): Promise<void> {
     /* Never block order flow on pixel failure */
   }
 }
+
+/**
+ * Re-initialise the agency pixel for a Cashfree-return Purchase event.
+ *
+ * Problem: When a user returns from Cashfree (full page reload), the
+ * sessionStorage flag from the first visit causes initAgencyPixelIfNeeded
+ * to skip re-init.  That means checkAndFirePurchase() fires to the main
+ * pixel only — the agency pixel misses the Purchase conversion.
+ *
+ * This function bypasses the flag and re-calls fbq('init') WITHOUT firing
+ * an extra PageView, ensuring the agency pixel is registered before
+ * checkAndFirePurchase() runs.
+ *
+ * - Only called from PurchaseReturnDetector in App.tsx.
+ * - Awaited before checkAndFirePurchase so the pixel is ready.
+ * - Never throws.
+ */
+export async function reinitAgencyPixelForPurchase(source: string): Promise<void> {
+  if (!source) return;
+  try {
+    const res = await fetch(
+      `/api/public/agency-pixel?source=${encodeURIComponent(source)}`,
+      { signal: AbortSignal.timeout(3000) },
+    );
+    if (!res.ok) return;
+
+    const data = (await res.json()) as { pixelId: string | null };
+    if (!data.pixelId) return;
+
+    const fbq = getFbq();
+    if (!fbq) return;
+
+    fbq("init", data.pixelId); // re-init only — no PageView
+    console.log(`[Pixel] Agency pixel ${data.pixelId} re-initialised for Cashfree Purchase (source: ${source})`);
+  } catch {
+    /* ignore — never block purchase tracking */
+  }
+}

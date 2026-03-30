@@ -10,7 +10,7 @@ import AdminDashboard from "@/pages/admin/AdminDashboard";
 import { isAdminLoggedIn } from "@/lib/adminApi";
 import { firePageView, checkAndFirePurchase } from "@/lib/pixel";
 import { getAgencySource } from "@/lib/visitorTracking";
-import { initAgencyPixelIfNeeded } from "@/lib/agencyPixel";
+import { initAgencyPixelIfNeeded, reinitAgencyPixelForPurchase } from "@/lib/agencyPixel";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -50,10 +50,24 @@ function RoutePageViewTracker() {
   return null;
 }
 
-/** Checks if user returned from Cashfree after payment and fires Purchase */
+/**
+ * Checks if user returned from Cashfree after payment and fires Purchase.
+ *
+ * Awaits agency pixel re-init first so the Purchase event fires to BOTH
+ * the main pixel AND the agency pixel (fixes Cashfree under-reporting for
+ * agency-sourced visitors who used online payment).
+ */
 function PurchaseReturnDetector() {
   useEffect(() => {
-    checkAndFirePurchase();
+    const src = getAgencySource();
+    if (src) {
+      // Re-init the agency pixel (bypasses sessionStorage flag) then fire Purchase
+      reinitAgencyPixelForPurchase(src).then(() => {
+        checkAndFirePurchase();
+      });
+    } else {
+      checkAndFirePurchase();
+    }
   }, []);
   return null;
 }

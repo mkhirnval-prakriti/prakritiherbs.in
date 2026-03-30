@@ -34,7 +34,45 @@ function resolveClientIp(req: Request): string | undefined {
 
 const router: IRouter = Router();
 
+/* ── Simple in-memory IP rate limiter ─────────────────────────────
+ * Allows at most MAX_ORDERS_PER_WINDOW per IP within WINDOW_MS.
+ * Intentionally lenient (not a hard security boundary) — its primary
+ * purpose is to stop naive bots that submit the form in a tight loop.
+ * The Map is bounded: entries are pruned after each request.
+ */
+const WINDOW_MS           = 15 * 60 * 1000;   // 15 minutes
+const MAX_ORDERS_PER_WINDOW = 5;
+const ipOrderLog = new Map<string, { count: number; windowStart: number }>();
+
+function isRateLimited(ip: string): boolean {
+  const now  = Date.now();
+  const rec  = ipOrderLog.get(ip);
+
+  if (!rec || now - rec.windowStart > WINDOW_MS) {
+    ipOrderLog.set(ip, { count: 1, windowStart: now });
+    return false;
+  }
+  if (rec.count >= MAX_ORDERS_PER_WINDOW) return true;
+  rec.count++;
+  return false;
+}
+
 router.post("/orders", async (req, res) => {
+  /* ── Honeypot: bots fill _wurl; real browsers leave it empty ── */
+  const raw = req.body as Record<string, unknown>;
+  if (raw._wurl && String(raw._wurl).trim().length > 0) {
+    // Silently pretend success — don't reveal the trap
+    res.status(201).json({ id: 0, orderId: "ORD-BOT", message: "Order placed." });
+    return;
+  }
+
+  /* ── IP rate limiting ── */
+  const clientIp = resolveClientIp(req) ?? "unknown";
+  if (isRateLimited(clientIp)) {
+    res.status(429).json({ error: "Too many requests. Please try again later." });
+    return;
+  }
+
   const parseResult = CreateOrderBody.safeParse(req.body);
 
   if (!parseResult.success) {
@@ -57,6 +95,7 @@ router.post("/orders", async (req, res) => {
     amount?: number;
     website?: string;
     domain?: string;
+    _wurl?: string;
   };
   const source = body.source?.trim().toLowerCase() || "direct";
   const visitorSource = body.visitorSource ?? "Direct";
