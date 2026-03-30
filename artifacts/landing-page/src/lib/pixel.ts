@@ -41,11 +41,31 @@ export function getCookie(name: string): string | undefined {
   }
 }
 
-function fbq(event: string, name: string, params?: Record<string, unknown>): void {
+/**
+ * Internal wrapper around window.fbq.
+ *
+ * Meta's deduplication spec requires eventID in the *4th* argument (options
+ * object), NOT inside the custom-data (3rd argument).
+ *
+ *   CORRECT: fbq('track', 'Purchase', customData, { eventID: 'abc' })
+ *   WRONG:   fbq('track', 'Purchase', { ...customData, eventID: 'abc' })
+ *
+ * Pass `eventID` here and this wrapper places it correctly.
+ */
+function fbq(
+  _action: string,
+  name: string,
+  params?: Record<string, unknown>,
+  eventID?: string,
+): void {
   try {
     const fn = (window as unknown as { fbq?: (...a: unknown[]) => void }).fbq;
     if (typeof fn === "function") {
-      fn("track", name, params ?? {});
+      if (eventID) {
+        fn("track", name, params ?? {}, { eventID });
+      } else {
+        fn("track", name, params ?? {});
+      }
     }
   } catch {
     // Pixel errors must never affect the order flow
@@ -125,12 +145,16 @@ export function firePageView(): void {
 
 /** Fire when COD order is successfully submitted — Purchase event for ROAS tracking */
 export function fireLead(params?: { name?: string; phone?: string; eventId?: string; value?: number }): void {
-  fbq("track", "Purchase", {
-    content_name: "KamaSutra Gold+",
-    currency: "INR",
-    value: params?.value ?? 999,
-    ...(params?.eventId ? { eventID: params.eventId } : {}),
-  });
+  fbq(
+    "track",
+    "Purchase",
+    {
+      content_name: "KamaSutra Gold+",
+      currency: "INR",
+      value: params?.value ?? 999,
+    },
+    params?.eventId, // ← 4th arg: Meta deduplication key (must NOT be in custom data)
+  );
 }
 
 /** Fire when user clicks Pay Now (before Cashfree redirect) */
@@ -263,13 +287,18 @@ export function checkAndFirePurchase(): void {
     sessionStorage.removeItem(SS_PURCHASE_KEY);
     sessionStorage.removeItem(SS_PURCHASE_EVT_ID);
 
-    fbq("track", "Purchase", {
-      content_name: "KamaSutra Gold+",
-      currency: "INR",
-      value: 999,
-      ...(orderId  ? { order_id: orderId }   : {}),
-      ...(eventId  ? { eventID: eventId }    : {}),
-    });
+    fbq(
+      "track",
+      "Purchase",
+      {
+        content_name: "KamaSutra Gold+",
+        currency: "INR",
+        value: 999,
+        ...(orderId ? { order_id: orderId } : {}),
+        // ↑ custom data only — eventID must NOT be here (Meta ignores it for dedup)
+      },
+      eventId, // ← 4th arg: deduplication key — Meta matches this with CAPI event_id
+    );
 
     console.log("[Pixel] Purchase event fired",
       orderId  ? `order_id=${orderId}` : "(no order_id in URL)",
