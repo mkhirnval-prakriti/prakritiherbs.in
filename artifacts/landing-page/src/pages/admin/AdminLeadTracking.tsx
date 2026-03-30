@@ -6,13 +6,18 @@ import {
 } from "@/lib/adminApi";
 import {
   RefreshCw, Phone, MessageCircle, Download, PhoneCall,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Globe,
 } from "lucide-react";
 
 const G = "#1B5E20";
 
 const CALL_STATUSES = ["all", "clicked", "missed", "answered", "called_back"];
 const TYPES = ["all", "call", "whatsapp"];
+const WEBSITES = [
+  { value: "all", label: "All Websites" },
+  { value: "PH_IN", label: "PH_IN (prakritiherbs.in)" },
+  { value: "PH_COM", label: "PH_COM (prakritiherbs.com)" },
+];
 
 function toISTDate(d: Date) {
   return d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
@@ -52,6 +57,16 @@ function TypeBadge({ type }: { type: string }) {
   );
 }
 
+function WebsiteBadge({ website }: { website: string | null | undefined }) {
+  if (!website) return <span className="text-gray-300 text-xs italic">—</span>;
+  const color = website === "PH_COM" ? "bg-indigo-100 text-indigo-700" : "bg-teal-100 text-teal-700";
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold ${color}`}>
+      <Globe className="w-3 h-3" />{website}
+    </span>
+  );
+}
+
 async function downloadExcel(filters: LeadFilters) {
   const result = await exportLeadTracking(filters);
   const rows = result.data;
@@ -59,6 +74,8 @@ async function downloadExcel(filters: LeadFilters) {
   function fmtRow(r: LeadEntry) {
     return {
       "DATE": new Date(r.created_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
+      "WEBSITE": (r as LeadEntry & { website?: string }).website ?? "",
+      "DOMAIN": (r as LeadEntry & { domain?: string }).domain ?? "",
       "TYPE": r.type.toUpperCase(),
       "STATUS": r.call_status.toUpperCase(),
       "MOBILE": r.customer_phone ?? "",
@@ -109,6 +126,7 @@ export function AdminLeadTracking() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("");
   const [phoneFilter, setPhoneFilter] = useState("");
+  const [websiteFilter, setWebsiteFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState(toISTDate(new Date(now.getFullYear(), now.getMonth(), 1)));
   const [dateTo, setDateTo] = useState(toISTDate(now));
 
@@ -117,6 +135,7 @@ export function AdminLeadTracking() {
     status: statusFilter !== "all" ? statusFilter : undefined,
     source: sourceFilter.trim() || undefined,
     phone: phoneFilter.trim() || undefined,
+    website: websiteFilter !== "all" ? websiteFilter : undefined,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
   };
@@ -130,7 +149,7 @@ export function AdminLeadTracking() {
       setPage(pg);
     } catch { /* ignore */ }
     finally { setLoading(false); }
-  }, [typeFilter, statusFilter, sourceFilter, phoneFilter, dateFrom, dateTo]); // eslint-disable-line
+  }, [typeFilter, statusFilter, sourceFilter, phoneFilter, websiteFilter, dateFrom, dateTo]); // eslint-disable-line
 
   useEffect(() => { void load(1); }, [load]);
 
@@ -154,6 +173,17 @@ export function AdminLeadTracking() {
     setExporting(true);
     try { await downloadExcel(filters); } catch { alert("Export failed"); }
     finally { setExporting(false); }
+  }
+
+  function handleReset() {
+    setTypeFilter("all");
+    setStatusFilter("all");
+    setSourceFilter("");
+    setPhoneFilter("");
+    setWebsiteFilter("all");
+    const n = new Date();
+    setDateFrom(toISTDate(new Date(n.getFullYear(), n.getMonth(), 1)));
+    setDateTo(toISTDate(n));
   }
 
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
@@ -196,7 +226,7 @@ export function AdminLeadTracking() {
       {/* Quick stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total (this page)</p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total</p>
           <p className="text-3xl font-black text-gray-900 mt-1">{total}</p>
         </div>
         <div className="bg-orange-50 rounded-xl border border-orange-200 p-4">
@@ -216,6 +246,16 @@ export function AdminLeadTracking() {
       {/* Filters */}
       <div className="bg-white rounded-xl border border-gray-200 p-4">
         <div className="flex flex-wrap gap-3 items-end">
+          {/* Website filter — highlighted */}
+          <div>
+            <label className="text-xs font-semibold text-teal-600 block mb-1 flex items-center gap-1">
+              <Globe className="w-3 h-3" /> Website
+            </label>
+            <select value={websiteFilter} onChange={(e) => setWebsiteFilter(e.target.value)}
+              className="border border-teal-300 rounded-lg px-3 py-1.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-teal-50">
+              {WEBSITES.map((w) => <option key={w.value} value={w.value}>{w.label}</option>)}
+            </select>
+          </div>
           <div>
             <label className="text-xs font-semibold text-gray-500 block mb-1">Type</label>
             <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
@@ -251,7 +291,7 @@ export function AdminLeadTracking() {
               className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500" />
           </div>
           <button
-            onClick={() => { setTypeFilter("all"); setStatusFilter("all"); setSourceFilter(""); setPhoneFilter(""); const n = new Date(); setDateFrom(toISTDate(new Date(n.getFullYear(), n.getMonth(), 1))); setDateTo(toISTDate(n)); }}
+            onClick={handleReset}
             className="px-3 py-1.5 text-xs font-semibold text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
           >
             Reset
@@ -277,6 +317,7 @@ export function AdminLeadTracking() {
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
                   <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Date</th>
+                  <th className="text-left px-4 py-3 text-xs font-bold text-teal-600 uppercase tracking-wider">Website</th>
                   <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Type</th>
                   <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Phone</th>
                   <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Source</th>
@@ -285,37 +326,41 @@ export function AdminLeadTracking() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {entries.map((entry) => (
-                  <tr key={entry.id}
-                    className={`hover:bg-gray-50 transition-colors ${entry.call_status === "missed" ? "bg-red-50/40" : entry.type === "whatsapp" ? "bg-green-50/30" : ""}`}>
-                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{fmtDT(entry.created_at)}</td>
-                    <td className="px-4 py-3"><TypeBadge type={entry.type} /></td>
-                    <td className="px-4 py-3 font-semibold text-gray-700">
-                      {entry.customer_phone ? `+91 ${entry.customer_phone}` : <span className="text-gray-400 italic text-xs">—</span>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-600 uppercase">
-                        {entry.source}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3"><StatusBadge status={entry.call_status} /></td>
-                    <td className="px-4 py-3">
-                      {entry.type === "call" && entry.call_status !== "called_back" && entry.call_status !== "answered" ? (
-                        <button
-                          onClick={() => void handleCallBack(entry.id)}
-                          disabled={updatingId === entry.id}
-                          className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-white rounded-lg disabled:opacity-50 transition-all"
-                          style={{ background: `linear-gradient(135deg, ${G}, #2E7D32)` }}
-                        >
-                          <Phone className="w-3 h-3" />
-                          {updatingId === entry.id ? "…" : "Call Back"}
-                        </button>
-                      ) : (
-                        <span className="text-xs text-gray-300">—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {entries.map((entry) => {
+                  const e = entry as LeadEntry & { website?: string };
+                  return (
+                    <tr key={entry.id}
+                      className={`hover:bg-gray-50 transition-colors ${entry.call_status === "missed" ? "bg-red-50/40" : entry.type === "whatsapp" ? "bg-green-50/30" : ""}`}>
+                      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{fmtDT(entry.created_at)}</td>
+                      <td className="px-4 py-3"><WebsiteBadge website={e.website} /></td>
+                      <td className="px-4 py-3"><TypeBadge type={entry.type} /></td>
+                      <td className="px-4 py-3 font-semibold text-gray-700">
+                        {entry.customer_phone ? `+91 ${entry.customer_phone}` : <span className="text-gray-400 italic text-xs">—</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-600 uppercase">
+                          {entry.source}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3"><StatusBadge status={entry.call_status} /></td>
+                      <td className="px-4 py-3">
+                        {entry.type === "call" && entry.call_status !== "called_back" && entry.call_status !== "answered" ? (
+                          <button
+                            onClick={() => void handleCallBack(entry.id)}
+                            disabled={updatingId === entry.id}
+                            className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-white rounded-lg disabled:opacity-50 transition-all"
+                            style={{ background: `linear-gradient(135deg, ${G}, #2E7D32)` }}
+                          >
+                            <Phone className="w-3 h-3" />
+                            {updatingId === entry.id ? "…" : "Call Back"}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-gray-300">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -350,12 +395,12 @@ export function AdminLeadTracking() {
       </div>
 
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-        <p className="text-xs font-bold text-blue-700 mb-1">📊 Excel Export — 3 Sheets</p>
+        <p className="text-xs font-bold text-blue-700 mb-1">Multi-Website Support Active</p>
         <p className="text-xs text-blue-600">
-          Sheet 1: All Data (20 columns) · Sheet 2: Missed Calls Only · Sheet 3: WhatsApp Leads Only
+          Filter by Website (PH_IN / PH_COM) · Excel export includes WEBSITE + DOMAIN columns · 22 columns total
         </p>
         <p className="text-xs text-blue-500 mt-1">
-          Exotel/Twilio call status (missed/answered) will auto-populate here once integrated.
+          2nd website se data aane ke liye use karo: <code className="bg-blue-100 px-1 rounded">website: "PH_COM"</code> in the tracking payload.
         </p>
       </div>
     </div>

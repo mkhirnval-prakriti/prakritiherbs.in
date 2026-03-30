@@ -374,6 +374,7 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
   const [exporting, setExporting] = useState(false);
   const [search, setSearch] = useState(globalSearch);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [websiteFilter, setWebsiteFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [datePreset, setDatePreset] = useState<DatePreset>("all");
@@ -400,11 +401,11 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
   const loadOrders = useCallback(async (pg = 1) => {
     setLoading(true); setSelected(new Set());
     try {
-      const r = await fetchOrders({ search, status: statusFilter, dateFrom, dateTo, page: pg, limit: LIMIT });
+      const r = await fetchOrders({ search, status: statusFilter, dateFrom, dateTo, website: websiteFilter !== "all" ? websiteFilter : undefined, page: pg, limit: LIMIT });
       setOrders(r.orders); setStats(r.stats); setTotal(r.total); setPage(pg);
     } catch { alert("Failed to load orders"); }
     finally { setLoading(false); }
-  }, [search, statusFilter, dateFrom, dateTo]);
+  }, [search, statusFilter, websiteFilter, dateFrom, dateTo]);
 
   useEffect(() => { void loadOrders(1); }, [loadOrders]);
   useEffect(() => { setSearch(globalSearch); }, [globalSearch]);
@@ -593,11 +594,17 @@ export function AdminOrders({ globalSearch, settings }: { globalSearch: string; 
             <option value="all">All Status</option>
             {ALL_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
+          <select value={websiteFilter} onChange={(e) => setWebsiteFilter(e.target.value)}
+            className="px-3 py-2 border border-teal-300 rounded-lg text-sm bg-teal-50 focus:outline-none focus:ring-2 focus:ring-teal-500">
+            <option value="all">All Websites</option>
+            <option value="PH_IN">PH_IN (prakritiherbs.in)</option>
+            <option value="PH_COM">PH_COM (prakritiherbs.com)</option>
+          </select>
           <div className="flex gap-2">
             <button type="submit" className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white hover:brightness-110" style={{ background: G }}>
               <Filter className="w-3.5 h-3.5" /> Filter
             </button>
-            <button type="button" onClick={() => { setSearch(""); setStatusFilter("all"); setDateFrom(""); setDateTo(""); setDatePreset("all"); void loadOrders(1); }}
+            <button type="button" onClick={() => { setSearch(""); setStatusFilter("all"); setWebsiteFilter("all"); setDateFrom(""); setDateTo(""); setDatePreset("all"); void loadOrders(1); }}
               className="px-3 py-2 rounded-lg text-sm bg-gray-100 hover:bg-gray-200 text-gray-600">Clear</button>
             <button type="button" onClick={() => void loadOrders(page)} disabled={loading}
               className="px-3 py-2 rounded-lg text-sm bg-gray-100 hover:bg-gray-200 text-gray-600">

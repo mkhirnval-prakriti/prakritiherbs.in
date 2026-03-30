@@ -21,6 +21,8 @@ export const leadTrackingTable = pgTable("lead_tracking", {
   city: text("city"),
   state: text("state"),
   country: text("country").default("India"),
+  website: text("website"),
+  domain: text("domain"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

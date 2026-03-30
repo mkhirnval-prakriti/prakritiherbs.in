@@ -55,6 +55,8 @@ router.post("/orders", async (req, res) => {
     city?: string;
     state?: string;
     amount?: number;
+    website?: string;
+    domain?: string;
   };
   const source = body.source?.trim().toLowerCase() || "direct";
   const visitorSource = body.visitorSource ?? "Direct";
@@ -83,6 +85,8 @@ router.post("/orders", async (req, res) => {
         visitorSource,
         landingPageUrl,
         eventId: body.eventId ?? null,
+        website: body.website?.trim() || null,
+        domain: body.domain?.trim() || null,
         status: "New",
       })
       .returning();

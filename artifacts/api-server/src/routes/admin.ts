@@ -111,11 +111,12 @@ router.delete("/admin/staff/:id", requireSuperAdmin, async (req, res) => {
 /* ─── Orders ─── */
 router.get("/admin/orders", requireAdmin, async (req, res) => {
   try {
-    const { search, status, dateFrom, dateTo, page = "1", limit = "50" } = req.query as Record<string, string>;
+    const { search, status, dateFrom, dateTo, website, page = "1", limit = "50" } = req.query as Record<string, string>;
     // Always exclude soft-deleted (trashed) orders
     const conditions = [isNull(ordersTable.deletedAt)];
     if (search) conditions.push(or(like(ordersTable.name, `%${search}%`), like(ordersTable.phone, `%${search}%`), like(ordersTable.address, `%${search}%`)));
     if (status && status !== "all") conditions.push(eq(ordersTable.status, status));
+    if (website && website !== "all") conditions.push(eq(ordersTable.website, website.toUpperCase()));
     if (dateFrom) conditions.push(gte(ordersTable.createdAt, new Date(dateFrom)));
     if (dateTo) { const end = new Date(dateTo); end.setHours(23, 59, 59, 999); conditions.push(lte(ordersTable.createdAt, end)); }
 

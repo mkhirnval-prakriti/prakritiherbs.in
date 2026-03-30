@@ -37,6 +37,8 @@ router.post("/lead-click", async (req, res) => {
       browser?: string;
       userAgent?: string;
       referrer?: string;
+      website?: string;
+      domain?: string;
     };
 
     const type = (body.type ?? "call").toLowerCase();
@@ -49,8 +51,9 @@ router.post("/lead-click", async (req, res) => {
       `INSERT INTO lead_tracking
         (event_id, type, source, customer_phone, call_status,
          page_url, landing_page, campaign_name, adset_name, ad_name,
-         device_type, browser, ip_address, user_agent, referrer, country)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'India')`,
+         device_type, browser, ip_address, user_agent, referrer, country,
+         website, domain)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'India',$16,$17)`,
       [
         body.eventId ?? null,
         type,
@@ -67,6 +70,8 @@ router.post("/lead-click", async (req, res) => {
         ipAddress ?? null,
         userAgent ?? null,
         body.referrer ?? null,
+        body.website?.trim() || null,
+        body.domain?.trim() || null,
       ]
     );
 
@@ -80,7 +85,7 @@ router.post("/lead-click", async (req, res) => {
 // ── Admin: list leads ─────────────────────────────────────────────────────────
 router.get("/admin/lead-tracking", requireAdmin, async (req, res) => {
   try {
-    const { type, status, source, phone, dateFrom, dateTo, page, limit } =
+    const { type, status, source, phone, dateFrom, dateTo, page, limit, website } =
       req.query as Record<string, string | undefined>;
 
     const pg = Math.max(1, parseInt(page ?? "1", 10));
@@ -106,6 +111,10 @@ router.get("/admin/lead-tracking", requireAdmin, async (req, res) => {
       const cleaned = phone.replace(/\D/g, "").slice(-10);
       params.push(`%${cleaned}%`);
       conditions.push(`customer_phone LIKE $${params.length}`);
+    }
+    if (website && website !== "all") {
+      params.push(website.toUpperCase());
+      conditions.push(`UPPER(website) = $${params.length}`);
     }
     if (dateFrom) {
       params.push(dateFrom);
@@ -151,7 +160,7 @@ router.get("/admin/lead-tracking", requireAdmin, async (req, res) => {
 // ── Admin: export all (for Excel) ────────────────────────────────────────────
 router.get("/admin/lead-tracking/export", requireAdmin, async (req, res) => {
   try {
-    const { type, status, source, phone, dateFrom, dateTo } =
+    const { type, status, source, phone, dateFrom, dateTo, website } =
       req.query as Record<string, string | undefined>;
 
     const params: unknown[] = [];
@@ -161,6 +170,7 @@ router.get("/admin/lead-tracking/export", requireAdmin, async (req, res) => {
     if (status && status !== "all") { params.push(status.toLowerCase()); conditions.push(`call_status = $${params.length}`); }
     if (source && source !== "all") { params.push(source.toLowerCase()); conditions.push(`LOWER(source) = $${params.length}`); }
     if (phone) { const c = phone.replace(/\D/g, "").slice(-10); params.push(`%${c}%`); conditions.push(`customer_phone LIKE $${params.length}`); }
+    if (website && website !== "all") { params.push(website.toUpperCase()); conditions.push(`UPPER(website) = $${params.length}`); }
     if (dateFrom) { params.push(dateFrom); conditions.push(`created_at >= $${params.length}::date`); }
     if (dateTo) { params.push(dateTo); conditions.push(`created_at < ($${params.length}::date + INTERVAL '1 day')`); }
 

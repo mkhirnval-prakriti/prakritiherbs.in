@@ -76,7 +76,9 @@ export interface Order {
   id: number; orderId: string; name: string; phone: string; email: string | null; address: string;
   pincode: string; city: string | null; state: string | null; quantity: number; product: string; source: string; status: string;
   paymentMethod: string | null; paymentId: string | null; paymentStatus: string | null;
-  trackingId: string | null; courier: string | null; visitorSource: string | null; createdAt: string; isRepeat?: boolean;
+  trackingId: string | null; courier: string | null; visitorSource: string | null;
+  website: string | null; domain: string | null;
+  createdAt: string; isRepeat?: boolean;
 }
 
 export interface OrderStats {
@@ -127,12 +129,13 @@ export interface Review {
 
 export interface AppSettings { settings: Record<string, string>; exists: Record<string, boolean> }
 
-export async function fetchOrders(params: { search?: string; status?: string; dateFrom?: string; dateTo?: string; page?: number; limit?: number } = {}): Promise<{ orders: Order[]; total: number; page: number; limit: number; stats: OrderStats }> {
+export async function fetchOrders(params: { search?: string; status?: string; dateFrom?: string; dateTo?: string; website?: string; page?: number; limit?: number } = {}): Promise<{ orders: Order[]; total: number; page: number; limit: number; stats: OrderStats }> {
   const qs = new URLSearchParams();
   if (params.search) qs.set("search", params.search);
   if (params.status) qs.set("status", params.status);
   if (params.dateFrom) qs.set("dateFrom", params.dateFrom);
   if (params.dateTo) qs.set("dateTo", params.dateTo);
+  if (params.website) qs.set("website", params.website);
   if (params.page) qs.set("page", String(params.page));
   if (params.limit) qs.set("limit", String(params.limit));
   const res = await authFetch(`/admin/orders?${qs}`);
@@ -715,6 +718,8 @@ export interface LeadEntry {
   city: string | null;
   state: string | null;
   country: string | null;
+  website: string | null;
+  domain: string | null;
   created_at: string;
 }
 export interface LeadFilters {
@@ -722,6 +727,7 @@ export interface LeadFilters {
   status?: string;
   source?: string;
   phone?: string;
+  website?: string;
   dateFrom?: string;
   dateTo?: string;
   page?: number;
@@ -736,6 +742,7 @@ export async function fetchLeadTracking(
   if (filters?.status) params.set("status", filters.status);
   if (filters?.source) params.set("source", filters.source);
   if (filters?.phone) params.set("phone", filters.phone);
+  if (filters?.website) params.set("website", filters.website);
   if (filters?.dateFrom) params.set("dateFrom", filters.dateFrom);
   if (filters?.dateTo) params.set("dateTo", filters.dateTo);
   if (filters?.page) params.set("page", String(filters.page));
@@ -754,6 +761,7 @@ export async function exportLeadTracking(
   if (filters?.status) params.set("status", filters.status);
   if (filters?.source) params.set("source", filters.source);
   if (filters?.phone) params.set("phone", filters.phone);
+  if (filters?.website) params.set("website", filters.website);
   if (filters?.dateFrom) params.set("dateFrom", filters.dateFrom);
   if (filters?.dateTo) params.set("dateTo", filters.dateTo);
   const qs = params.toString();
