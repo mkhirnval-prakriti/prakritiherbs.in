@@ -47,3 +47,19 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Environment / Secrets — NEVER commit these
+.env
+.env.local
+.env.production
+.env*.local
+
+# Build output (keep in gitignore, deploy from Replit)
+artifacts/landing-page/dist/
+artifacts/api-server/dist/
+artifacts/mockup-sandbox/dist/
+
+# Replit internal files
+.replit
+replit.nix
+.replitignore
