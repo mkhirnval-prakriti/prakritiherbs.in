@@ -1,4 +1,4 @@
-import { generateEventId, fireLead } from "./pixel";
+import { generateEventId } from "./pixel";
 import { getAgencySource, getVisitorSource, getLandingPageUrl } from "./visitorTracking";
 
 const API_BASE = "/api";
@@ -19,13 +19,16 @@ function detectBrowser(ua: string): string {
   return "Other";
 }
 
+/**
+ * Track a Call Now button click — internal CRM only.
+ * NO Facebook pixel event is fired. Facebook should only see
+ * real Purchase events from confirmed COD/payment orders.
+ */
 export function trackCall(): void {
   try {
     const eventId = generateEventId();
     const source = getAgencySource() || getVisitorSource() || "direct";
     const ua = navigator.userAgent;
-
-    fireLead({ eventId, value: 0 });
 
     void fetch(`${API_BASE}/lead-click`, {
       method: "POST",
@@ -48,13 +51,16 @@ export function trackCall(): void {
   }
 }
 
+/**
+ * Track a WhatsApp button click — internal CRM only.
+ * NO Facebook pixel event is fired. Facebook should only see
+ * real Purchase events from confirmed COD/payment orders.
+ */
 export function trackWhatsApp(): void {
   try {
     const eventId = generateEventId();
     const source = getAgencySource() || getVisitorSource() || "direct";
     const ua = navigator.userAgent;
-
-    fireLead({ eventId, value: 0 });
 
     void fetch(`${API_BASE}/lead-click`, {
       method: "POST",
