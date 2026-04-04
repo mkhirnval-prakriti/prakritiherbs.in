@@ -271,25 +271,36 @@ export function OrderForm() {
 
       const leadEventId = generateEventId();
 
-      fetch("/api/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(), phone: mobile, address: address.trim(),
-          pincode: pincode.trim(), city: city.trim() || undefined, state: state.trim() || undefined,
-          quantity: parseInt(quantity, 10), product: "KamaSutra Gold+",
-          // Agency source from ?source= URL param (highest priority) → localStorage → "direct"
-          source: agencySource || "direct",
-          email: email.trim() || undefined,
-          visitorSource: visitorSource ?? "Direct",
-          landingPageUrl: getLandingPageUrl() || undefined,
-          eventId: leadEventId,
-          fbp: getCookie("_fbp"),
-          fbc: getCookie("_fbc"),
-          userAgent: navigator.userAgent,
-          _wurl: "",  // honeypot — real submissions always send empty string
-        }),
-      }).catch(() => {});
+      // Await the order API so we get the server-assigned orderId for pixel dedup.
+      // orderId (ORD-XXXXXXXX) is the stable key for px_purch_order_<orderId>.
+      let serverOrderId: string | undefined;
+      try {
+        const orderRes = await fetch("/api/orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: name.trim(), phone: mobile, address: address.trim(),
+            pincode: pincode.trim(), city: city.trim() || undefined, state: state.trim() || undefined,
+            quantity: parseInt(quantity, 10), product: "KamaSutra Gold+",
+            // Agency source from ?source= URL param (highest priority) → localStorage → "direct"
+            source: agencySource || "direct",
+            email: email.trim() || undefined,
+            visitorSource: visitorSource ?? "Direct",
+            landingPageUrl: getLandingPageUrl() || undefined,
+            eventId: leadEventId,
+            fbp: getCookie("_fbp"),
+            fbc: getCookie("_fbc"),
+            userAgent: navigator.userAgent,
+            _wurl: "",  // honeypot — real submissions always send empty string
+          }),
+        });
+        if (orderRes.ok) {
+          const data = await orderRes.json() as { orderId?: string };
+          serverOrderId = data.orderId;
+        }
+      } catch {
+        // non-blocking — pixel still fires with eventId fallback
+      }
 
       sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), agencySource || "COD", city.trim() || undefined, state.trim() || undefined);
 
@@ -301,7 +312,7 @@ export function OrderForm() {
         phone: mobile, firstName: name.trim(),
         city: city.trim() || undefined, state: state.trim() || undefined, zip: pincode.trim() || undefined,
       });
-      fireLead({ name: name.trim(), phone: mobile, eventId: leadEventId });
+      fireLead({ name: name.trim(), phone: mobile, eventId: leadEventId, orderId: serverOrderId });
       // Clear agency attribution + landing URL after order — avoid carrying over to next session
       clearAgencySource();
       clearLandingPageUrl();

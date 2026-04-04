@@ -212,24 +212,35 @@ export function OrderModal({ open, onClose, bannerUrl }: { open: boolean; onClos
         Number: mobile, STATE: state.trim() || undefined,
       }).catch((err) => { if (!(err instanceof DuplicateOrderError)) console.error("[Modal] CRM:", err instanceof Error ? err.message : err); });
 
-      fetch("/api/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(), phone: mobile, address: address.trim(),
-          pincode: pincode.trim(), city: city.trim() || undefined, state: state.trim() || undefined,
-          quantity: pack.qty, product: "KamaSutra Gold+",
-          source: agencySource || "direct",
-          visitorSource: visitorSource ?? "Direct",
-          landingPageUrl: getLandingPageUrl() || undefined,
-          eventId: leadEventId,
-          fbp: getCookie("_fbp"),
-          fbc: getCookie("_fbc"),
-          userAgent: navigator.userAgent,
-          amount: pack.price,
-          _wurl: "",  // honeypot — real submissions always send empty string
-        }),
-      }).catch(() => {});
+      // Await the order API so we get the server-assigned orderId for pixel dedup.
+      // orderId (ORD-XXXXXXXX) is the stable key for px_purch_order_<orderId>.
+      let serverOrderId: string | undefined;
+      try {
+        const orderRes = await fetch("/api/orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: name.trim(), phone: mobile, address: address.trim(),
+            pincode: pincode.trim(), city: city.trim() || undefined, state: state.trim() || undefined,
+            quantity: pack.qty, product: "KamaSutra Gold+",
+            source: agencySource || "direct",
+            visitorSource: visitorSource ?? "Direct",
+            landingPageUrl: getLandingPageUrl() || undefined,
+            eventId: leadEventId,
+            fbp: getCookie("_fbp"),
+            fbc: getCookie("_fbc"),
+            userAgent: navigator.userAgent,
+            amount: pack.price,
+            _wurl: "",  // honeypot — real submissions always send empty string
+          }),
+        });
+        if (orderRes.ok) {
+          const data = await orderRes.json() as { orderId?: string };
+          serverOrderId = data.orderId;
+        }
+      } catch {
+        // non-blocking — pixel still fires with eventId fallback
+      }
 
       sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), agencySource || "COD",
         city.trim() || undefined, state.trim() || undefined, pack.qty, pack.price);
@@ -242,7 +253,7 @@ export function OrderModal({ open, onClose, bannerUrl }: { open: boolean; onClos
         phone: mobile, firstName: name.trim(),
         city: city.trim() || undefined, state: state.trim() || undefined, zip: pincode.trim() || undefined,
       });
-      fireLead({ phone: mobile, eventId: leadEventId, value: pack.price });
+      fireLead({ phone: mobile, eventId: leadEventId, value: pack.price, orderId: serverOrderId });
       clearAgencySource();
       clearLandingPageUrl();
 

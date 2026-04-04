@@ -146,20 +146,32 @@ export function firePageView(): void {
 /**
  * Fire when COD order is successfully submitted — Purchase event for ROAS tracking.
  *
- * Deduplication:
- *  - Each eventId can only fire once (stored in localStorage so it persists across
- *    sessions, page refreshes, back-button returns, and WhatsApp redirects).
- *  - eventID is passed in the 4th arg (NOT in custom data) for server CAPI dedup.
+ * Deduplication (order-based, persists across all edge cases):
+ *  - Primary key:  "px_purch_order_<orderId>"  (when orderId is available)
+ *  - Fallback key: "px_purch_<eventId>"         (if orderId not yet known)
+ *  - Stored in localStorage → survives refresh, back-button, WhatsApp return, tab close.
+ *  - Stored value includes eventId so CAPI can retrieve it later for matching.
+ *  - eventID is passed in the 4th fbq() arg (NOT in custom data) for server CAPI dedup.
  */
-export function fireLead(params?: { name?: string; phone?: string; eventId?: string; value?: number }): void {
-  // ── localStorage dedup guard ───────────────────────────────────────────────
-  // Once a Purchase is fired for a given eventId it is NEVER fired again,
-  // even if the user refreshes, hits back, or returns from WhatsApp.
-  if (params?.eventId) {
-    const dedupKey = `px_purch_${params.eventId}`;
+export function fireLead(params?: {
+  name?: string;
+  phone?: string;
+  eventId?: string;
+  value?: number;
+  orderId?: string;    // ← server-returned ORD-XXXXXXXX — preferred dedup key
+}): void {
+  // ── localStorage dedup guard (order-based) ────────────────────────────────
+  const dedupKey = params?.orderId
+    ? `px_purch_order_${params.orderId}`    // primary — stable per-order key
+    : params?.eventId
+      ? `px_purch_${params.eventId}`        // fallback — per-event key
+      : null;
+
+  if (dedupKey) {
     try {
       if (localStorage.getItem(dedupKey)) return; // already fired for this order
-      localStorage.setItem(dedupKey, "1");
+      // Store eventId alongside so server CAPI can later retrieve & match it
+      localStorage.setItem(dedupKey, JSON.stringify({ eventId: params?.eventId ?? null, fired: Date.now() }));
     } catch {
       // localStorage unavailable (private/incognito strict mode) — proceed anyway
     }
@@ -309,17 +321,26 @@ export function checkAndFirePurchase(): void {
     sessionStorage.removeItem(SS_PURCHASE_KEY);
     sessionStorage.removeItem(SS_PURCHASE_EVT_ID);
 
-    // ── localStorage dedup guard (cross-session, persists after tab close) ───
-    if (eventId) {
-      const dedupKey = `px_purch_${eventId}`;
+    // ── localStorage dedup guard (order-based, cross-session) ───────────────
+    // Primary key uses orderId from Cashfree return URL (ORD-XXXXXXXX format).
+    // Falls back to eventId key if no orderId in URL.
+    // Stored value includes eventId for future CAPI matching.
+    const dedupKey = orderId
+      ? `px_purch_order_${orderId}`   // primary — matches server orderId
+      : eventId
+        ? `px_purch_${eventId}`       // fallback — per-session event key
+        : null;
+
+    if (dedupKey) {
       try {
         if (localStorage.getItem(dedupKey)) {
-          // Already tracked in a previous session — clean up sessionStorage only
+          // Already tracked in a previous session — clean up sessionStorage flags
           sessionStorage.removeItem(SS_PURCHASE_KEY);
           sessionStorage.removeItem(SS_PURCHASE_EVT_ID);
           return;
         }
-        localStorage.setItem(dedupKey, "1");
+        // Store eventId alongside so CAPI can retrieve & match it later
+        localStorage.setItem(dedupKey, JSON.stringify({ eventId: eventId ?? null, fired: Date.now() }));
       } catch { /* proceed if localStorage blocked */ }
     }
 
