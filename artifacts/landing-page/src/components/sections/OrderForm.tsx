@@ -293,9 +293,10 @@ export function OrderForm() {
 
       sendToSheet(name.trim(), mobile, address.trim(), pincode.trim(), agencySource || "COD", city.trim() || undefined, state.trim() || undefined);
 
-      const msg = `*New COD Order:*\n*Product:* KamaSutra Gold+\n*Name:* ${name}\n*Mobile:* ${mobile}\n*Address:* ${address}${city ? `, ${city}` : ""}${state ? `, ${state}` : ""}\n*Pincode:* ${pincode}\n*Qty:* ${quantity} bottle(s)`;
-      openWhatsApp(msg);
-
+      // ── Fire pixel BEFORE WhatsApp redirect ──────────────────────────────────
+      // CRITICAL: On Android, openWhatsApp() calls window.location.href which
+      // navigates away immediately. Any code after it will NOT execute on Android.
+      // fireLead MUST be called before openWhatsApp or the Purchase event is lost.
       void setAdvancedMatching({
         phone: mobile, firstName: name.trim(),
         city: city.trim() || undefined, state: state.trim() || undefined, zip: pincode.trim() || undefined,
@@ -304,6 +305,10 @@ export function OrderForm() {
       // Clear agency attribution + landing URL after order — avoid carrying over to next session
       clearAgencySource();
       clearLandingPageUrl();
+
+      /* WhatsApp redirect — after pixel fired */
+      const msg = `*New COD Order:*\n*Product:* KamaSutra Gold+\n*Name:* ${name}\n*Mobile:* ${mobile}\n*Address:* ${address}${city ? `, ${city}` : ""}${state ? `, ${state}` : ""}\n*Pincode:* ${pincode}\n*Qty:* ${quantity} bottle(s)`;
+      openWhatsApp(msg);
       setLoading(false);
       setShowSuccess(true);
     } catch (err) {

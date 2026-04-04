@@ -143,15 +143,37 @@ export function firePageView(): void {
   fbq("track", "PageView");
 }
 
-/** Fire when COD order is successfully submitted — Purchase event for ROAS tracking */
+/**
+ * Fire when COD order is successfully submitted — Purchase event for ROAS tracking.
+ *
+ * Deduplication:
+ *  - Each eventId can only fire once (stored in localStorage so it persists across
+ *    sessions, page refreshes, back-button returns, and WhatsApp redirects).
+ *  - eventID is passed in the 4th arg (NOT in custom data) for server CAPI dedup.
+ */
 export function fireLead(params?: { name?: string; phone?: string; eventId?: string; value?: number }): void {
+  // ── localStorage dedup guard ───────────────────────────────────────────────
+  // Once a Purchase is fired for a given eventId it is NEVER fired again,
+  // even if the user refreshes, hits back, or returns from WhatsApp.
+  if (params?.eventId) {
+    const dedupKey = `px_purch_${params.eventId}`;
+    try {
+      if (localStorage.getItem(dedupKey)) return; // already fired for this order
+      localStorage.setItem(dedupKey, "1");
+    } catch {
+      // localStorage unavailable (private/incognito strict mode) — proceed anyway
+    }
+  }
+
   fbq(
     "track",
     "Purchase",
     {
-      content_name: "KamaSutra Gold+",
-      currency: "INR",
-      value: params?.value ?? 999,
+      content_name:  "KamaSutra Gold+",
+      content_ids:   ["kamasutra-gold-plus"],
+      content_type:  "product",
+      currency:      "INR",
+      value:         params?.value ?? 999,
     },
     params?.eventId, // ← 4th arg: Meta deduplication key (must NOT be in custom data)
   );
@@ -287,13 +309,29 @@ export function checkAndFirePurchase(): void {
     sessionStorage.removeItem(SS_PURCHASE_KEY);
     sessionStorage.removeItem(SS_PURCHASE_EVT_ID);
 
+    // ── localStorage dedup guard (cross-session, persists after tab close) ───
+    if (eventId) {
+      const dedupKey = `px_purch_${eventId}`;
+      try {
+        if (localStorage.getItem(dedupKey)) {
+          // Already tracked in a previous session — clean up sessionStorage only
+          sessionStorage.removeItem(SS_PURCHASE_KEY);
+          sessionStorage.removeItem(SS_PURCHASE_EVT_ID);
+          return;
+        }
+        localStorage.setItem(dedupKey, "1");
+      } catch { /* proceed if localStorage blocked */ }
+    }
+
     fbq(
       "track",
       "Purchase",
       {
-        content_name: "KamaSutra Gold+",
-        currency: "INR",
-        value: 999,
+        content_name:  "KamaSutra Gold+",
+        content_ids:   ["kamasutra-gold-plus"],
+        content_type:  "product",
+        currency:      "INR",
+        value:         999,
         ...(orderId ? { order_id: orderId } : {}),
         // ↑ custom data only — eventID must NOT be here (Meta ignores it for dedup)
       },
