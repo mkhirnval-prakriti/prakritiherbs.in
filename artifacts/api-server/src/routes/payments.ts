@@ -74,7 +74,7 @@ router.post("/payments/razorpay/verify", async (req, res) => {
         paymentId: razorpayPaymentId,
         paymentStatus: "success",
         paymentMethod: "Razorpay",
-        status: "Confirmed",
+        status: "Confirmed - Paid",
       }).where(eq(ordersTable.id, localOrderId));
     }
 

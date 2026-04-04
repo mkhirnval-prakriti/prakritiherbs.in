@@ -5,7 +5,6 @@ import { NewProductHero } from "@/components/new/NewProductHero";
 import { NewFooter } from "@/components/new/NewFooter";
 import { OrderModal } from "@/components/new/OrderModal";
 import { Reviews } from "@/components/sections/Reviews";
-import { FloatingContact } from "@/components/FloatingContact";
 import { LiveOrderPopup } from "@/components/LiveOrderPopup";
 
 export default function Home() {
@@ -62,9 +61,6 @@ export default function Home() {
         onClose={() => setModalOpen(false)}
         bannerUrl={bannerUrl}
       />
-
-      {/* Floating WhatsApp button — kept intact */}
-      <FloatingContact />
 
       {/* Live order social proof popup — kept intact */}
       <LiveOrderPopup />

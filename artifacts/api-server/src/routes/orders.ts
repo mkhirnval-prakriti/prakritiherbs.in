@@ -126,7 +126,7 @@ router.post("/orders", async (req, res) => {
         eventId: body.eventId ?? null,
         website: body.website?.trim() || null,
         domain: body.domain?.trim() || null,
-        status: "New",
+        status: "Pending COD Confirmation",
       })
       .returning();
 
