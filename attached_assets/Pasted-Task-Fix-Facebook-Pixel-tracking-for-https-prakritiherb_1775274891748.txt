@@ -1,0 +1,82 @@
+Task: Fix Facebook Pixel tracking for https://prakritiherbs.in/
+
+GOAL:
+Ensure BOTH COD form submissions and Online Payments are tracked as "Purchase" events in Facebook Pixel — WITHOUT duplicate firing.
+
+-----------------------------------
+
+1. PURCHASE EVENT (IMPORTANT):
+
+A. COD FORM:
+- When user submits COD form successfully:
+  → Fire Facebook Pixel event: Purchase
+  → Include parameters:
+    - value: product price
+    - currency: INR
+    - content_type: product
+  → This should be treated as a confirmed purchase event
+
+B. ONLINE PAYMENT:
+- When payment is successful:
+  → Fire Facebook Pixel event: Purchase
+  → Include same parameters
+  → Mark as Paid Purchase
+
+-----------------------------------
+
+2. DUPLICATE EVENT PREVENTION (CRITICAL):
+
+- Pixel MUST fire ONLY ONCE per user/order
+
+Implement following logic:
+
+- Use a UNIQUE EVENT ID (event_id) for each order
+- Store a flag in browser:
+  → localStorage or sessionStorage (e.g. "purchase_tracked = true")
+
+- Before firing pixel:
+  → Check if already fired
+  → If YES → DO NOT fire again
+  → If NO → Fire and set flag
+
+-----------------------------------
+
+3. HANDLE EDGE CASES:
+
+- If user:
+  → Refreshes page
+  → Clicks back button
+  → Goes to WhatsApp and returns
+  → Internet disconnect/reconnect
+
+👉 Pixel should NOT fire again
+
+-----------------------------------
+
+4. WHATSAPP REDIRECTION CASE:
+
+- If after COD form submission user is redirected to WhatsApp:
+  → Pixel should fire BEFORE redirect
+  → And NEVER fire again on return
+
+-----------------------------------
+
+5. TECH IMPLEMENTATION:
+
+- Use fbq('track', 'Purchase', {...}, {eventID: 'unique_id'})
+- Generate unique eventID per order (timestamp + random string)
+- Store eventID to prevent duplicate firing
+
+-----------------------------------
+
+6. FINAL CHECK:
+
+- COD → 1 Purchase event
+- Payment → 1 Purchase event
+- No duplicate events in Facebook Events Manager
+- Test using Facebook Pixel Helper
+
+-----------------------------------
+
+Output:
+Clean, working implementation with NO duplicate Purchase events.
