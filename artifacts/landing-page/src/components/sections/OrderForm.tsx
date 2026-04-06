@@ -166,6 +166,8 @@ export function OrderForm() {
   const [pinLookupLoading, setPinLookupLoading] = useState(false);
   const [_wurl, set_wurl] = useState("");
   const abandonedFired = useRef(false);
+  const abandonedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abandonedUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const geoAttempted = useRef(false);
   const visitorSource = getVisitorSource();
 
@@ -207,6 +209,44 @@ export function OrderForm() {
       { timeout: 8000, maximumAge: 300000, enableHighAccuracy: false }
     );
   }, []);
+
+  /* ─── Abandoned Cart: trigger when phone reaches 10 digits ───────────────
+   * Fires 1.5 s after the user stops typing. No name/other-field required.
+   * Backend upserts by phone, so calling this multiple times is safe.
+   * ─────────────────────────────────────────────────────────────────────── */
+  useEffect(() => {
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length < 10) return;
+    if (abandonedFired.current) return; // already captured once — don't re-trigger on phone re-type
+
+    if (abandonedTimer.current) clearTimeout(abandonedTimer.current);
+    abandonedTimer.current = setTimeout(() => {
+      captureAbandonedCart(name, phone, address, pincode, email, buildCrmSource(agencySource, visitorSource ?? "Direct"));
+      abandonedFired.current = true;
+    }, 1500);
+
+    return () => { if (abandonedTimer.current) clearTimeout(abandonedTimer.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phone]);
+
+  /* ─── Abandoned Cart: update with address/pincode once captured ──────────
+   * After the initial capture, if the user fills address or pincode later,
+   * send an update (debounced 2 s) so we have the most complete data.
+   * ─────────────────────────────────────────────────────────────────────── */
+  useEffect(() => {
+    if (!abandonedFired.current) return;
+    if (!address.trim() && !pincode.trim()) return;
+
+    if (abandonedUpdateTimer.current) clearTimeout(abandonedUpdateTimer.current);
+    abandonedUpdateTimer.current = setTimeout(() => {
+      const digits = phone.replace(/\D/g, "");
+      if (digits.length < 10) return;
+      captureAbandonedCart(name, phone, address, pincode, email, buildCrmSource(agencySource, visitorSource ?? "Direct"));
+    }, 2000);
+
+    return () => { if (abandonedUpdateTimer.current) clearTimeout(abandonedUpdateTimer.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address, pincode]);
 
   /* ─── Pincode Lookup Fallback ─── */
   async function handlePincodeChange(val: string) {
@@ -469,12 +509,6 @@ export function OrderForm() {
                     <div className="relative">
                       <span className="absolute left-4 top-3 text-muted-foreground text-sm">+91</span>
                       <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
-                        onBlur={() => {
-                          if (!abandonedFired.current && name.trim().length >= 2 && phone.replace(/\D/g, "").length >= 10) {
-                            abandonedFired.current = true;
-                            captureAbandonedCart(name, phone, address, pincode, email, agencySource || undefined);
-                          }
-                        }}
                         className={`${inputClass("phone")} pl-12`} placeholder="98765 43210" maxLength={10} />
                     </div>
                     {errors.phone && <p className="text-red-500 text-xs">{errors.phone}</p>}

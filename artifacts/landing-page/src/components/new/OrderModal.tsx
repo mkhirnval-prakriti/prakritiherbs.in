@@ -41,6 +41,23 @@ function sendToSheet(name: string, mobile: string, address: string, pincode: str
   fetch(GOOGLE_SHEET_URL, { method: "POST", mode: "no-cors", body: payload }).catch(() => {});
 }
 
+function captureAbandonedCart(name: string, phone: string, address: string, pincode: string, source?: string) {
+  const cleanPhone = phone.replace(/\D/g, "").slice(-10);
+  if (cleanPhone.length < 10) return;
+  fetch("/api/abandoned-cart", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: name.trim() || "Unknown",
+      phone: cleanPhone,
+      address: address.trim() || null,
+      pincode: pincode.trim() || null,
+      source: source || "Website Store",
+    }),
+    keepalive: true,
+  }).catch(() => {});
+}
+
 async function reverseGeocode(lat: number, lon: number): Promise<{ pincode: string; city: string; state: string } | null> {
   try {
     const res = await fetch(
@@ -134,6 +151,9 @@ export function OrderModal({ open, onClose, bannerUrl }: { open: boolean; onClos
   const [pinLookupLoading, setPinLookupLoading] = useState(false);
   const [_wurl, set_wurl] = useState("");
   const geoAttempted = useRef(false);
+  const abandonedFired = useRef(false);
+  const abandonedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abandonedUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const visitorSource = getVisitorSource();
   const agencySource = getAgencySource();
 
@@ -162,6 +182,52 @@ export function OrderModal({ open, onClose, bannerUrl }: { open: boolean; onClos
       () => setLocationStatus("gps_denied"),
       { timeout: 8000, maximumAge: 300000, enableHighAccuracy: false }
     );
+  }, [open]);
+
+  /* ─── Abandoned Cart: trigger when phone reaches 10 digits ───────────────
+   * Fires 1.5 s after user stops typing — no other field required.
+   * Backend upserts by phone so multiple calls are safe.
+   * ─────────────────────────────────────────────────────────────────────── */
+  useEffect(() => {
+    if (!open) return;
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length < 10) return;
+    if (abandonedFired.current) return;
+
+    if (abandonedTimer.current) clearTimeout(abandonedTimer.current);
+    abandonedTimer.current = setTimeout(() => {
+      captureAbandonedCart(name, phone, address, pincode, buildCrmSource(agencySource, visitorSource ?? "Direct"));
+      abandonedFired.current = true;
+    }, 1500);
+
+    return () => { if (abandonedTimer.current) clearTimeout(abandonedTimer.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phone, open]);
+
+  /* ─── Abandoned Cart: enrich with address/pincode once captured ──────────
+   * After first capture, push updated address/pincode if user fills them.
+   * ─────────────────────────────────────────────────────────────────────── */
+  useEffect(() => {
+    if (!open || !abandonedFired.current) return;
+    if (!address.trim() && !pincode.trim()) return;
+
+    if (abandonedUpdateTimer.current) clearTimeout(abandonedUpdateTimer.current);
+    abandonedUpdateTimer.current = setTimeout(() => {
+      const digits = phone.replace(/\D/g, "");
+      if (digits.length < 10) return;
+      captureAbandonedCart(name, phone, address, pincode, buildCrmSource(agencySource, visitorSource ?? "Direct"));
+    }, 2000);
+
+    return () => { if (abandonedUpdateTimer.current) clearTimeout(abandonedUpdateTimer.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address, pincode, open]);
+
+  /* ─── Reset abandoned-cart state when modal reopens ─────────────────── */
+  useEffect(() => {
+    if (open) return; // only on close
+    abandonedFired.current = false;
+    if (abandonedTimer.current) clearTimeout(abandonedTimer.current);
+    if (abandonedUpdateTimer.current) clearTimeout(abandonedUpdateTimer.current);
   }, [open]);
 
   async function handlePincodeChange(val: string) {
