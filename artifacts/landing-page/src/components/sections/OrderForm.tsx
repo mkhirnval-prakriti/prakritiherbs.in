@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, ShieldCheck, Truck, Package, X, Loader2, MapPin, CheckCircle, AlertCircle } from "lucide-react";
 import { cleanMobile, sendLeadToCRM, DuplicateOrderError, hasOrderedToday } from "@/lib/crm";
 import { fireLead, fireInitiateCheckout, markPaymentInitiated, generateEventId, getCookie, setAdvancedMatching } from "@/lib/pixel";
-import { getVisitorSource, startVisitorPing, getAgencySource, clearAgencySource, captureLandingUrl, getLandingPageUrl, clearLandingPageUrl } from "@/lib/visitorTracking";
+import { getVisitorSource, startVisitorPing, getAgencySource, clearAgencySource, captureLandingUrl, getLandingPageUrl, clearLandingPageUrl, buildCrmSource, captureUtmParams, getUtmParams, clearUtmParams } from "@/lib/visitorTracking";
 import { openWhatsApp } from "@/lib/whatsapp";
 
 /* ─── Types ─── */
@@ -179,7 +179,8 @@ export function OrderForm() {
 
   /* ─── GPS Auto-Detect on Page Load ─── */
   useEffect(() => {
-    // Must run BEFORE any navigation — captures the URL visitor first landed on
+    // Must run BEFORE any navigation — captures UTMs + landing URL on first visit
+    captureUtmParams();
     captureLandingUrl();
     startVisitorPing();
 
@@ -256,12 +257,16 @@ export function OrderForm() {
 
     setLoading(true);
     try {
+      const utm = getUtmParams();
       sendLeadToCRM({
-        name:    name.trim(),
-        address: address.trim(),
-        pincode: pincode.trim(),
-        Number:  mobile,
-        STATE:   state.trim() || undefined,
+        name:        name.trim(),
+        address:     address.trim(),
+        pincode:     pincode.trim(),
+        Number:      mobile,
+        STATE:       state.trim() || undefined,
+        crmSource:   buildCrmSource(agencySource, visitorSource ?? "Direct"),
+        utmCampaign: utm.campaign || undefined,
+        utmMedium:   utm.medium   || undefined,
       }).then(() => {
         console.log("[COD] CRM lead saved successfully.");
       }).catch((err) => {
@@ -316,6 +321,7 @@ export function OrderForm() {
       // Clear agency attribution + landing URL after order — avoid carrying over to next session
       clearAgencySource();
       clearLandingPageUrl();
+      clearUtmParams();
 
       /* WhatsApp redirect — after pixel fired */
       const msg = `*New COD Order:*\n*Product:* KamaSutra Gold+\n*Name:* ${name}\n*Mobile:* ${mobile}\n*Address:* ${address}${city ? `, ${city}` : ""}${state ? `, ${state}` : ""}\n*Pincode:* ${pincode}\n*Qty:* ${quantity} bottle(s)`;
@@ -336,8 +342,12 @@ export function OrderForm() {
     if (!mobile) { alert("Please enter a valid 10-digit mobile number."); return; }
     if (hasOrderedToday(mobile)) { alert("आप आज इस नंबर से ऑर्डर कर चुके हैं। कृपया कल प्रयास करें।"); return; }
 
+    const utmPay = getUtmParams();
     sendLeadToCRM({
       name: name.trim(), address: address.trim(), pincode: pincode.trim(), Number: mobile, STATE: state.trim() || undefined,
+      crmSource:   buildCrmSource(agencySource, visitorSource ?? "Direct"),
+      utmCampaign: utmPay.campaign || undefined,
+      utmMedium:   utmPay.medium   || undefined,
     }).then(() => console.log("[PayNow] CRM lead saved."))
       .catch((err) => { if (err instanceof DuplicateOrderError) return; console.error("[PayNow] CRM failed:", err instanceof Error ? err.message : err); });
 

@@ -109,11 +109,17 @@ async function attemptCRM(payload: object): Promise<void> {
 }
 
 export interface CRMFields {
-  name:    string;
-  address: string;
-  pincode: string;
-  Number:  string;
-  STATE?:  string;
+  name:        string;
+  address:     string;
+  pincode:     string;
+  Number:      string;
+  STATE?:      string;
+  /** Human-readable source string — built by buildCrmSource() in visitorTracking.ts */
+  crmSource?:  string;
+  /** utm_campaign value (optional, for campaign-level CRM reporting) */
+  utmCampaign?: string;
+  /** utm_medium value (optional) */
+  utmMedium?:  string;
 }
 
 export async function sendLeadToCRM(fields: CRMFields): Promise<void> {
@@ -129,10 +135,13 @@ export async function sendLeadToCRM(fields: CRMFields): Promise<void> {
     Number:        fields.Number,
     reason:        "New",
     status:        "New",
-    websiteSource: "ind Store",
+    // Dynamic source — never hardcoded; falls back to "Website Direct" if not provided
+    websiteSource: fields.crmSource ?? "Website Direct",
     date:          getISTTimestamp(),
   };
-  if (fields.STATE) payload.STATE = fields.STATE;
+  if (fields.STATE)       payload.STATE       = fields.STATE;
+  if (fields.utmCampaign) payload.campaign    = fields.utmCampaign;
+  if (fields.utmMedium)   payload.medium      = fields.utmMedium;
 
   console.log("[CRM] Payload to be sent:", JSON.stringify(payload, null, 2));
 

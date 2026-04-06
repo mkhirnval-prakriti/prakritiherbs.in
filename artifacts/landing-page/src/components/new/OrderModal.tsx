@@ -6,6 +6,7 @@ import { fireLead, generateEventId, getCookie, setAdvancedMatching } from "@/lib
 import {
   getVisitorSource, startVisitorPing, getAgencySource,
   clearAgencySource, captureLandingUrl, getLandingPageUrl, clearLandingPageUrl,
+  buildCrmSource, captureUtmParams, getUtmParams, clearUtmParams,
 } from "@/lib/visitorTracking";
 import { openWhatsApp } from "@/lib/whatsapp";
 
@@ -141,6 +142,7 @@ export function OrderModal({ open, onClose, bannerUrl }: { open: boolean; onClos
   /* GPS on first open */
   useEffect(() => {
     if (!open) return;
+    captureUtmParams();   // save utm_source/medium/campaign to localStorage on first visit
     captureLandingUrl();
     startVisitorPing();
     if (geoAttempted.current || !navigator.geolocation) return;
@@ -207,9 +209,13 @@ export function OrderModal({ open, onClose, bannerUrl }: { open: boolean; onClos
       const pack = PACKS[selectedPackIdx];
       const leadEventId = generateEventId();
 
+      const utm = getUtmParams();
       sendLeadToCRM({
         name: name.trim(), address: address.trim(), pincode: pincode.trim(),
         Number: mobile, STATE: state.trim() || undefined,
+        crmSource:   buildCrmSource(agencySource, visitorSource ?? "Direct"),
+        utmCampaign: utm.campaign || undefined,
+        utmMedium:   utm.medium   || undefined,
       }).catch((err) => { if (!(err instanceof DuplicateOrderError)) console.error("[Modal] CRM:", err instanceof Error ? err.message : err); });
 
       // Await the order API so we get the server-assigned orderId for pixel dedup.
@@ -256,6 +262,7 @@ export function OrderModal({ open, onClose, bannerUrl }: { open: boolean; onClos
       fireLead({ phone: mobile, eventId: leadEventId, value: pack.price, orderId: serverOrderId });
       clearAgencySource();
       clearLandingPageUrl();
+      clearUtmParams();
 
       /* WhatsApp redirect — after pixel fired */
       const msg = `*New COD Order — KamaSutra Gold+*\n*Name:* ${name.trim()}\n*Mobile:* ${mobile}\n*Address:* ${address.trim()}${city ? `, ${city}` : ""}${state ? `, ${state}` : ""}\n*Pincode:* ${pincode}\n*Qty:* ${pack.label} (${pack.qty} bottle)\n*Amount:* ₹${pack.price} (COD)\n*Source:* ${agencySource || "direct"}`;
