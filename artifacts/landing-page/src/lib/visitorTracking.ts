@@ -46,52 +46,63 @@ export function clearUtmParams(): void {
 /* ─────────────────────────────────────────────────────────────────
  * CRM Source Builder
  *
- * Computes the human-readable `websiteSource` string to send to CRM.
- *
- * Priority (highest → lowest):
- *  1. Agency slug  (?source=taj)   → "Agency: Taj"
- *  2. UTM source   (utm_source=)   → "Meta Ads - Facebook" / "Meta Ads - Instagram" / etc.
- *  3. fbclid / igshid URL params   → "Meta Ads - Facebook" / "Meta Ads - Instagram"
- *  4. visitorSource (from referrer) → "Meta Ads - Facebook" / "Meta Ads - Instagram" / etc.
- *  5. Fallback                      → "Website Direct"
+ * Computes the `websiteSource` string sent to CRM API.
+ * CRM uses this field to route orders into the correct store.
  * ───────────────────────────────────────────────────────────────── */
+/*
+ * CRM Store Name Mapping
+ * ─────────────────────────────────────────────────────────────────
+ * These string values are sent as `websiteSource` to the CRM API.
+ * The CRM uses this field to route orders into the correct store.
+ *
+ * Mapping:
+ *   ?source=taj                      → "Taj Store"
+ *   utm_source=facebook / fbclid     → "Meta Store"
+ *   utm_source=instagram / igshid    → "Meta Store"
+ *   utm_source=google / gclid        → "Google Store"
+ *   (no source detected)             → "Website Store"
+ *
+ * To add a new agency store:  add a case inside the agencySource block.
+ * To rename a store:          change only the return string here.
+ */
+const AGENCY_STORE_MAP: Record<string, string> = {
+  taj: "Taj Store",
+  // Add future agencies here:
+  // agency2: "Agency2 Store",
+};
+
 export function buildCrmSource(agencySource: string, visitorSource: VisitorSource): string {
-  // Priority 1 — Agency link (?source=taj, ?source=agency1, …)
+  // Priority 1 — Agency link (?source=taj → "Taj Store")
   if (agencySource) {
-    const capitalized = agencySource.charAt(0).toUpperCase() + agencySource.slice(1);
-    return `Agency: ${capitalized}`;
+    const slug  = agencySource.toLowerCase();
+    const label = AGENCY_STORE_MAP[slug];
+    // Known agency → mapped store name. Unknown agency → generic label so it still separates.
+    return label ?? `${agencySource.charAt(0).toUpperCase() + agencySource.slice(1)} Store`;
   }
 
-  // Priority 2 — UTM params (most reliable for ad campaigns)
+  // Priority 2 — UTM params (most reliable; set by ad platforms)
   const utm = getUtmParams();
   if (utm.source) {
     const s = utm.source.toLowerCase();
-    if (s.includes("facebook") || s === "fb") return "Meta Ads - Facebook";
-    if (s.includes("instagram") || s === "ig") return "Meta Ads - Instagram";
-    if (s.includes("google"))                  return "Google Ads";
-    if (s.includes("whatsapp") || s === "wa")  return "WhatsApp";
-    if (s.includes("youtube"))                 return "YouTube";
-    // Unknown UTM source → use it as-is for transparency
-    const label = utm.source.charAt(0).toUpperCase() + utm.source.slice(1);
-    return `UTM: ${label}`;
+    if (s.includes("facebook") || s === "fb") return "Meta Store";
+    if (s.includes("instagram") || s === "ig") return "Meta Store";
+    if (s.includes("google"))                  return "Google Store";
+    // Any other UTM source that isn't mapped → "Website Store" (don't leak raw UTM values)
   }
 
-  // Priority 3 — Check fbclid/igshid/gclid directly in current URL
+  // Priority 3 — fbclid / igshid / gclid directly in URL (no UTM but ad click params present)
   if (typeof window !== "undefined") {
     const p = new URLSearchParams(window.location.search);
-    if (p.has("fbclid")) return "Meta Ads - Facebook";
-    if (p.has("igshid")) return "Meta Ads - Instagram";
-    if (p.has("gclid"))  return "Google Ads";
+    if (p.has("fbclid") || p.has("igshid")) return "Meta Store";
+    if (p.has("gclid"))                     return "Google Store";
   }
 
-  // Priority 4 — Visitor source detected from referrer
-  if (visitorSource === "Facebook")  return "Meta Ads - Facebook";
-  if (visitorSource === "Instagram") return "Meta Ads - Instagram";
-  if (visitorSource === "WhatsApp")  return "WhatsApp";
-  if (visitorSource === "Google")    return "Google Ads";
+  // Priority 4 — Referrer-based detection (organic social, no UTM)
+  if (visitorSource === "Facebook" || visitorSource === "Instagram") return "Meta Store";
+  if (visitorSource === "Google")                                    return "Google Store";
 
-  // Priority 5 — Fallback
-  return "Website Direct";
+  // Priority 5 — Default
+  return "Website Store";
 }
 
 /* ─────────────────────────────────────────────────────────────────
