@@ -66,18 +66,19 @@ export function clearUtmParams(): void {
  * To rename a store:          change only the return string here.
  */
 const AGENCY_STORE_MAP: Record<string, string> = {
-  taj: "Taj Store",
+  taj: "Agency Taj Store",
   // Add future agencies here:
-  // agency2: "Agency2 Store",
+  // delhi: "Agency Delhi Store",
+  // agencyA: "Agency A Store",
 };
 
 export function buildCrmSource(agencySource: string, visitorSource: VisitorSource): string {
-  // Priority 1 — Agency link (?source=taj → "Taj Store")
+  // Priority 1 — Agency link (?source=taj → "Agency Taj Store")
   if (agencySource) {
     const slug  = agencySource.toLowerCase();
     const label = AGENCY_STORE_MAP[slug];
-    // Known agency → mapped store name. Unknown agency → generic label so it still separates.
-    return label ?? `${agencySource.charAt(0).toUpperCase() + agencySource.slice(1)} Store`;
+    // Known agency → mapped store name. Unknown agency → "Agency XYZ Store" (always "Agency" prefix).
+    return label ?? `Agency ${agencySource.charAt(0).toUpperCase() + agencySource.slice(1)} Store`;
   }
 
   // Priority 2 — UTM params (most reliable; set by ad platforms)
